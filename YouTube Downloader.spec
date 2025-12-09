@@ -2,7 +2,7 @@
 
 
 a = Analysis(
-    ['youtube_downloader_advanced.py'],
+    ['launcher.py'],
     pathex=[],
     binaries=[],
     datas=[],
@@ -35,10 +35,11 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon=['assets/icon.png'],
 )
 app = BUNDLE(
     exe,
     name='YouTube Downloader.app',
-    icon=None,
+    icon='assets/icon.png',
     bundle_identifier=None,
 )
