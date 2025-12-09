@@ -3,14 +3,26 @@ import yt_dlp
 import os
 import subprocess
 from pathlib import Path
+import threading
+from ui_components import ProgressControl
 
 
 class YouTubeDownloaderMVP:
-    def __init__(self, page: ft.Page):
+    def __init__(self, page: ft.Page, on_back=None):
         self.page = page
-        self.page.title = "YouTube Downloader - MVP"
-        self.page.window_width = 650
-        self.page.window_height = 550
+        self.on_back = on_back
+        self.page.title = "YouTube Downloader - Simple"
+        self.page.window_width = 800
+        self.page.window_height = 700
+        self.page.theme_mode = ft.ThemeMode.DARK
+        self.page.bgcolor = "#1a1a1a"
+        self.page.padding = 0
+        
+        # Custom Fonts
+        self.page.fonts = {
+            "Inter": "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"
+        }
+        self.page.theme = ft.Theme(font_family="Inter")
 
         # Default download path
         self.download_path = str(Path.home() / "Downloads")
@@ -19,178 +31,210 @@ class YouTubeDownloaderMVP:
         self.file_picker = ft.FilePicker(on_result=self.on_folder_selected)
         self.page.overlay.append(self.file_picker)
 
-        self.url_field = ft.TextField(
-            label="YouTube URL",
-            hint_text="https://www.youtube.com/watch?v=...",
-            width=500,
+        self.init_ui()
+
+    def init_ui(self):
+        # Header
+        header_content = [
+            ft.Icon(ft.Icons.BOLT, size=40, color=ft.Colors.YELLOW_ACCENT),
+            ft.Text("Simple Downloader", size=24, weight=ft.FontWeight.BOLD, color="white"),
+        ]
+        
+        if self.on_back:
+            header_content.insert(0, ft.IconButton(
+                icon=ft.Icons.ARROW_BACK, 
+                icon_color="white",
+                on_click=self.on_back,
+                tooltip="Back to Menu"
+            ))
+
+        self.header = ft.Container(
+            content=ft.Row(
+                header_content,
+                alignment=ft.MainAxisAlignment.CENTER if not self.on_back else ft.MainAxisAlignment.START,
+            ),
+            padding=ft.padding.only(top=40, bottom=20, left=20),
+            gradient=ft.LinearGradient(
+                begin=ft.alignment.top_center,
+                end=ft.alignment.bottom_center,
+                colors=["#2d2d2d", "#1a1a1a"],
+            ),
         )
 
-        # Download mode: Video or Audio
+        # Input Field
+        self.url_field = ft.TextField(
+            label="YouTube URL",
+            hint_text="Paste video link here...",
+            width=500,
+            border_radius=10,
+            bgcolor="#2d2d2d",
+            border_color="#404040",
+            focused_border_color=ft.Colors.YELLOW_ACCENT,
+            text_style=ft.TextStyle(color="white"),
+            label_style=ft.TextStyle(color="#aaaaaa"),
+            prefix_icon=ft.Icons.LINK,
+        )
+
+        # Download Mode
         self.download_mode = ft.RadioGroup(
             content=ft.Row([
-                ft.Radio(value="video", label="Video (MP4)"),
-                ft.Radio(value="audio", label="Audio (MP3)")
-            ]),
+                self.create_radio_option("Video (MP4)", "video", ft.Icons.VIDEOCAM),
+                self.create_radio_option("Audio (MP3)", "audio", ft.Icons.AUDIOTRACK),
+            ], alignment=ft.MainAxisAlignment.CENTER, spacing=20),
             value="video"
         )
 
-        # Location selection
-        self.location_field = ft.TextField(
-            value=self.download_path,
-            read_only=True,
-            width=400,
+        # Location
+        self.location_text = ft.Text(self.download_path, size=12, color="#888888", italic=True)
+        self.location_container = ft.Container(
+            content=ft.Row([
+                ft.Icon(ft.Icons.FOLDER_OPEN, size=16, color="#888888"),
+                self.location_text,
+                ft.TextButton("Change", on_click=lambda _: self.file_picker.get_directory_path(), style=ft.ButtonStyle(color=ft.Colors.YELLOW_ACCENT))
+            ], alignment=ft.MainAxisAlignment.CENTER),
+            padding=10,
         )
 
-        self.location_row = ft.Row([
-            ft.Text("Saqlash joyi:", size=14),
-            self.location_field,
-            ft.IconButton(
-                icon=ft.Icons.FOLDER_OPEN,
-                tooltip="Joyni tanlash",
-                on_click=lambda _: self.file_picker.get_directory_path()
-            )
-        ], spacing=10)
+        # Progress Control
+        self.progress_control = ProgressControl(width=500)
 
-        self.status_text = ft.Text("", color="blue")
-        self.progress_bar = ft.ProgressBar(visible=False, width=500)
-        self.progress_text = ft.Text("", visible=False)
-
-        self.show_file_btn = ft.ElevatedButton(
-            text="Show File",
-            on_click=self.show_file,
-            width=200,
-            visible=False,
+        self.download_btn = ft.ElevatedButton(
+            text="Download Now",
+            icon=ft.Icons.DOWNLOAD,
+            on_click=self.download_video,
+            width=250,
+            style=ft.ButtonStyle(
+                color="black",
+                bgcolor={"": ft.Colors.YELLOW_ACCENT, "hovered": ft.Colors.YELLOW_700},
+                shape=ft.RoundedRectangleBorder(radius=10),
+                padding=20,
+            ),
         )
 
         self.downloaded_file_path = None
 
-        self.download_btn = ft.ElevatedButton(
-            text="Start Download",
-            on_click=self.download_video,
-            width=200,
+        self.page.add(
+            ft.Column(
+                [
+                    self.header,
+                    ft.Container(
+                        content=ft.Column([
+                            self.url_field,
+                            ft.Container(height=10),
+                            self.download_mode,
+                            self.location_container,
+                            ft.Container(height=20),
+                            self.download_btn,
+                            ft.Container(height=20),
+                            self.progress_control,
+                        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                        padding=30,
+                    )
+                ],
+                scroll=ft.ScrollMode.AUTO,
+                expand=True
+            )
         )
 
-        self.page.add(
-            ft.Container(
-                content=ft.Column(
-                    [
-                        ft.Text("YouTube Downloader", size=24, weight=ft.FontWeight.BOLD),
-                        ft.Divider(),
-                        self.url_field,
-                        ft.Row([
-                            ft.Text("Format:", size=14),
-                            self.download_mode,
-                        ], spacing=10),
-                        self.location_row,
-                        self.download_btn,
-                        self.progress_bar,
-                        self.progress_text,
-                        self.status_text,
-                        self.show_file_btn,
-                    ],
-                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                    spacing=15,
-                ),
-                padding=30,
-            )
+    def create_radio_option(self, label, value, icon):
+        return ft.Container(
+            content=ft.Row([
+                ft.Radio(value=value, fill_color=ft.Colors.YELLOW_ACCENT),
+                ft.Icon(icon, size=20, color="white"),
+                ft.Text(label, color="white")
+            ]),
+            bgcolor="#252525",
+            padding=10,
+            border_radius=10,
+            border=ft.border.all(1, "#333333")
         )
 
     def on_folder_selected(self, e: ft.FilePickerResultEvent):
         if e.path:
             self.download_path = e.path
-            self.location_field.value = e.path
+            self.location_text.value = e.path
             self.page.update()
 
     def download_video(self, e):
         url = self.url_field.value.strip()
 
         if not url:
-            self.status_text.value = "Iltimos, YouTube URL kiriting"
-            self.status_text.color = "red"
+            self.url_field.error_text = "Please enter a URL"
             self.page.update()
             return
 
+        self.url_field.error_text = None
         self.download_btn.disabled = True
-        self.show_file_btn.visible = False
-        self.progress_bar.visible = True
-        self.progress_text.visible = True
-        self.progress_text.value = "0%"
-        self.status_text.value = "Yuklab olinmoqda..."
-        self.status_text.color = "blue"
+        self.progress_control.start_download()
         self.page.update()
 
-        try:
-            # Check if Audio or Video mode
-            if self.download_mode.value == "audio":
-                ydl_opts = {
-                    'format': 'bestaudio/best',
-                    'outtmpl': f'{self.download_path}/%(title)s.%(ext)s',
-                    'progress_hooks': [self.progress_hook],
-                    'postprocessors': [{
-                        'key': 'FFmpegExtractAudio',
-                        'preferredcodec': 'mp3',
-                        'preferredquality': '192',
-                    }],
-                }
-                self.status_text.value = "Audio yuklanmoqda..."
-            else:
-                ydl_opts = {
-                    'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-                    'outtmpl': f'{self.download_path}/%(title)s.%(ext)s',
-                    'progress_hooks': [self.progress_hook],
-                    'merge_output_format': 'mp4',
-                    'postprocessors': [{
-                        'key': 'FFmpegVideoConvertor',
-                        'preferedformat': 'mp4',
-                    }],
-                }
-                self.status_text.value = "Video yuklanmoqda..."
-
-            self.status_text.color = "blue"
-            self.page.update()
-
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=False)
-                filename = ydl.prepare_filename(info)
-
-                # For audio, filename will have .mp3 extension
+        def download_thread():
+            try:
+                # Check if Audio or Video mode
                 if self.download_mode.value == "audio":
-                    filename = filename.rsplit('.', 1)[0] + '.mp3'
+                    ydl_opts = {
+                        'format': 'bestaudio/best',
+                        'outtmpl': f'{self.download_path}/%(title)s.%(ext)s',
+                        'progress_hooks': [self.progress_hook],
+                        'postprocessors': [{
+                            'key': 'FFmpegExtractAudio',
+                            'preferredcodec': 'mp3',
+                            'preferredquality': '192',
+                        }],
+                        'quiet': True,
+                        'no_warnings': True,
+                    }
+                else:
+                    ydl_opts = {
+                        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+                        'outtmpl': f'{self.download_path}/%(title)s.%(ext)s',
+                        'progress_hooks': [self.progress_hook],
+                        'merge_output_format': 'mp4',
+                        'postprocessors': [{
+                            'key': 'FFmpegVideoConvertor',
+                            'preferedformat': 'mp4',
+                        }],
+                        'quiet': True,
+                        'no_warnings': True,
+                    }
 
-                ydl.download([url])
-                self.downloaded_file_path = filename
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(url, download=False)
+                    filename = ydl.prepare_filename(info)
 
-            mode_text = "Audio" if self.download_mode.value == "audio" else "Video"
-            self.status_text.value = f"{mode_text} muvaffaqiyatli yuklandi"
-            self.status_text.color = "green"
-            self.show_file_btn.visible = True
+                    # For audio, filename will have .mp3 extension
+                    if self.download_mode.value == "audio":
+                        filename = filename.rsplit('.', 1)[0] + '.mp3'
 
-        except Exception as ex:
-            self.status_text.value = f"Xatolik: {str(ex)}"
-            self.status_text.color = "red"
+                    ydl.download([url])
+                    self.downloaded_file_path = filename
 
-        finally:
-            self.download_btn.disabled = False
-            self.progress_bar.visible = False
-            self.page.update()
+                mode_text = "Audio" if self.download_mode.value == "audio" else "Video"
+                self.progress_control.complete(
+                    f"✅ {mode_text} downloaded successfully!",
+                    on_show_click=self.show_file
+                )
+
+            except Exception as ex:
+                self.progress_control.error(str(ex))
+
+            finally:
+                self.download_btn.disabled = False
+                self.page.update()
+
+        threading.Thread(target=download_thread, daemon=True).start()
 
     def progress_hook(self, d):
         if d['status'] == 'downloading':
             try:
+                percent = 0
                 if 'total_bytes' in d and d['total_bytes'] > 0:
                     percent = d['downloaded_bytes'] / d['total_bytes']
-                    self.progress_bar.value = percent
-                    self.progress_text.value = f"{int(percent * 100)}%"
-                    self.page.update()
                 elif 'total_bytes_estimate' in d and d['total_bytes_estimate'] > 0:
                     percent = d['downloaded_bytes'] / d['total_bytes_estimate']
-                    self.progress_bar.value = percent
-                    self.progress_text.value = f"{int(percent * 100)}%"
-                    self.page.update()
-                elif 'downloaded_bytes' in d:
-                    downloaded_mb = d['downloaded_bytes'] / (1024 * 1024)
-                    self.progress_text.value = f"{downloaded_mb:.1f}MB"
-                    self.page.update()
+                
+                if percent > 0:
+                    self.progress_control.update_progress(percent)
             except Exception:
                 pass
 

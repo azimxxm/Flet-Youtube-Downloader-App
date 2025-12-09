@@ -9,6 +9,13 @@ echo "🚀 YouTube Downloader - Production Build"
 echo "========================================"
 echo ""
 
+# Check for FFmpeg
+if ! command -v ffmpeg &> /dev/null; then
+    echo "❌ FFmpeg could not be found. Please install it first (brew install ffmpeg)."
+    exit 1
+fi
+echo "✅ FFmpeg found"
+
 # Clean previous builds
 echo "🧹 Cleaning previous builds..."
 rm -rf dist build *.spec __pycache__
@@ -25,34 +32,33 @@ echo ""
 
 # Build the app
 echo "🔨 Building macOS application..."
-flet pack launcher.py
+flet pack launcher.py \
+    --name "YouTube Downloader" \
+    --product-name "YouTube Downloader" \
+    --copyright "Copyright (c) 2024" \
+    --icon "assets/icon.png"
+
 echo "✅ Build complete"
 echo ""
 
-# Create DMG (optional - requires create-dmg)
-# Uncomment if you want to create a DMG installer
-# echo "📀 Creating DMG installer..."
-# create-dmg \
-#   --volname "YouTube Downloader" \
-#   --window-pos 200 120 \
-#   --window-size 800 400 \
-#   --icon-size 100 \
-#   --icon "launcher.app" 200 190 \
-#   --hide-extension "launcher.app" \
-#   --app-drop-link 600 185 \
-#   "YouTube-Downloader.dmg" \
-#   "dist/launcher.app"
+# Create PKG installer
+echo "📦 Creating PKG installer..."
+pkgbuild --component "dist/YouTube Downloader.app" \
+         --install-location "/Applications" \
+         "dist/YouTube Downloader.pkg"
+
+echo "✅ PKG creation complete"
+echo ""
 
 # Show results
 echo "✅ Production build completed!"
 echo ""
 echo "📁 Build artifacts:"
-echo "   - Application: dist/launcher.app"
-echo "   - Executable: dist/launcher"
+echo "   - Application: dist/YouTube Downloader.app"
+echo "   - Installer:   dist/YouTube Downloader.pkg"
 echo ""
 echo "📦 Distribution:"
-echo "   1. Test the app: open dist/launcher.app"
-echo "   2. Share: Compress launcher.app to .zip for distribution"
-echo "   3. Users extract .zip and drag launcher.app to Applications"
+echo "   1. Share 'dist/YouTube Downloader.pkg'"
+echo "   2. Users can simply double-click to install"
 echo ""
 echo "🎉 Done! Ready for distribution."
