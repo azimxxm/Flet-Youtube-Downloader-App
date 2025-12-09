@@ -1,111 +1,67 @@
-# YouTube Video Downloader
+# 📺 YouTube Downloader for macOS
 
-YouTube videolarini yuklash uchun desktop ilova. Python va Flet yordamida yaratilgan.
+A premium, modern, and powerful YouTube Downloader application built for macOS. Download videos, audio, and playlists with ease using a beautiful dark-themed interface.
 
-## 🚀 Tez Ishga Tushirish
+![YouTube Downloader Banner](assets/icon.png)
 
-Faqat bitta komanda kerak:
+## ✨ Features
 
-```bash
-python3 run.py
-```
+*   **🎨 Premium UI/UX**: Modern, dark-themed interface with smooth animations and a professional look.
+*   **🚀 Three Powerful Modes**:
+    *   **⚡️ Simple (MVP)**: Quick and easy downloads. Just paste the link and go.
+    *   **🛠 Advanced**: Full control. Choose resolution (up to 4K), format (MP4/MP3), and download subtitles in multiple languages.
+    *   **playlist Playlist**: Download entire playlists with a single click. Select specific videos or download all at once.
+*   **🍎 Native macOS Experience**: Installs directly to your `/Applications` folder via a standard `.pkg` installer.
+*   **🛠 Automatic Setup**: Automatically handles dependencies like FFmpeg, so you don't have to.
+*   **📝 Metadata & Subtitles**: Preserves video metadata and supports downloading subtitles in English, Russian, Uzbek, and more.
+*   **⚡️ Fast Downloads**: Powered by `yt-dlp` for maximum speed and reliability.
 
-Bu komanda grafik oyna ochadi va quyidagilarni ko'rsatadi:
-- ✅ Barcha kerakli komponentlarni tekshiradi (check mark bilan)
-- ✅ Agar biror narsa yo'q bo'lsa, "Install qilish" tugmasi paydo bo'ladi
-- ✅ Hamma narsa tayyor bo'lganda "Boshlash" tugmasi ko'rsatiladi
-- ✅ "Boshlash" bosganda versiya tanlash oynasi ochiladi
-- ✅ MVP yoki Advanced versiyani tanlaysiz va ilova ishga tushadi
+## 📥 Installation
 
-## Foydalanish
+### Option 1: Install via PKG (Recommended)
 
-### MVP versiya (oddiy yuklash)
+1.  Download the latest **`YouTube Downloader.pkg`** from the releases page.
+2.  Double-click the `.pkg` file to launch the installer.
+3.  Follow the prompts to install.
+4.  Open **YouTube Downloader** from your **Applications** folder or Launchpad.
 
-**Funksiyalar:**
-- YouTube URL kiriting
-- "Start Download" tugmasini bosing
-- Video avtomatik eng yaxshi sifatda yuklanadi
-- Progress foizi ko'rsatiladi
-- Fayllar `~/Downloads` papkasiga saqlanadi
-- "Show File" tugmasi bilan faylni Finder'da ochish
+### Option 2: Run from Source
 
-### Advanced versiya (sifat tanlash)
+If you prefer to run the application from the source code:
 
-**Funksiyalar:**
-- YouTube URL kiriting
-- "Formatlarni ko'rish" tugmasini bosing
-- Video haqida ma'lumot ko'ring (nom, davomiylik)
-- Kerakli sifatni tanlang (masalan: 1080p - 34.5MB)
-- "Start Download" tugmasini bosing
-- Progress foizi ko'rsatiladi
-- "Show File" tugmasi bilan faylni Finder'da ochish
+1.  **Clone the repository**:
+    ```bash
+    git clone https://github.com/azimxxm/Flet-Youtube-Downloader-App.git
+    cd Flet-Youtube-Downloader-App
+    ```
 
-## Xususiyatlar
+2.  **Run the application**:
+    ```bash
+    python3 run.py
+    ```
+    *The application will automatically check for and install necessary dependencies (Flet, yt-dlp, FFmpeg) on the first run.*
 
-✅ **Avtomatik o'rnatish** - Barcha kerakli komponentlar avtomatik o'rnatiladi
-✅ **Sodda interfeys** - Foydalanish oson va tushunarli
-✅ **Progress monitoring** - Yuklanish foizi va hajmi ko'rsatiladi
-✅ **Sifat tanlash** - Turli sifatlarni tanlash (720p, 1080p, va h.k.)
-✅ **Fayl hajmi** - Har bir sifat uchun fayl hajmi ko'rsatiladi
-✅ **QuickTime moslik** - Video QuickTime'da ishlaydi
-✅ **Finder integratsiya** - "Show File" tugmasi bilan faylni topish
-✅ **Uzbek tili** - To'liq uzbek tilida interfeys
+## 🛠 Tech Stack
 
-## Texnologiyalar
+*   **Language**: Python 3.10+
+*   **UI Framework**: [Flet](https://flet.dev) (Flutter for Python)
+*   **Core Engine**: [yt-dlp](https://github.com/yt-dlp/yt-dlp)
+*   **Media Processing**: FFmpeg
+*   **Packaging**: `pkgbuild` (macOS)
 
-- **Python 3.7+**
-- **Flet** - Desktop UI framework
-- **yt-dlp** - YouTube video yuklash kutubxonasi
-- **FFmpeg** - Video qayta ishlash
+## 📸 Screenshots
 
-## Qo'lda O'rnatish (Agar avtomatik ishlamasa)
+| Simple Mode | Advanced Mode | Playlist Mode |
+|:-----------:|:-------------:|:-------------:|
+| *(Screenshot)* | *(Screenshot)* | *(Screenshot)* |
 
-### Python kutubxonalari:
-```bash
-pip install -r requirements.txt
-```
+## 🤝 Contributing
 
-### FFmpeg (agar avtomatik o'rnatilmagan bo'lsa):
+Contributions are welcome! Please feel free to submit a Pull Request.
 
-**macOS:**
-```bash
-brew install ffmpeg
-```
+## 📄 License
 
-**Linux:**
-```bash
-sudo apt install ffmpeg
-```
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-**Windows:**
-1. https://ffmpeg.org/download.html dan yuklab oling
-2. FFmpeg'ni PATH ga qo'shing
-
-## Boshqa Ishga Tushirish Usullari
-
-### GUI Launcher (Tavsiya etiladi):
-```bash
-python3 launcher.py
-```
-
-### To'g'ridan-to'g'ri versiyani ishga tushirish:
-```bash
-# MVP versiya
-python3 youtube_downloader_mvp.py
-
-# Advanced versiya
-python3 youtube_downloader_advanced.py
-```
-
-### Console setup:
-```bash
-python3 setup.py
-```
-
-## Muammolar
-
-Agar muammolar yuzaga kelsa:
-1. FFmpeg o'rnatilganligini tekshiring: `ffmpeg -version`
-2. Python 3.7+ o'rnatilganligini tekshiring: `python3 --version`
-3. Internet aloqasi barqaror ekanligini tekshiring
-4. `python3 setup.py` komandasi bilan qayta o'rnatib ko'ring
+---
+*Built with ❤️ by Azimjon*

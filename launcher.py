@@ -9,6 +9,17 @@ import youtube_downloader_mvp
 import youtube_downloader_advanced
 import youtube_playlist_downloader
 
+# Add common paths to PATH for GUI app environment
+common_paths = [
+    "/opt/homebrew/bin",
+    "/usr/local/bin",
+    "/usr/bin",
+    "/bin",
+    "/usr/sbin",
+    "/sbin"
+]
+os.environ["PATH"] += os.pathsep + os.pathsep.join(common_paths)
+
 class SetupWindow:
     def __init__(self, page: ft.Page):
         self.page = page
@@ -47,18 +58,41 @@ class SetupWindow:
         """Build the UI"""
         check_list = ft.Column(spacing=15)
 
+        # Define manual commands
+        self.manual_commands = {
+            'python': "brew install python",
+            'flet': "pip install flet yt-dlp ffmpeg-python",
+            'yt_dlp': "pip install yt-dlp",
+            'ffmpeg': "brew install ffmpeg"
+        }
+
         for key, info in self.checks.items():
             icon = ft.Icon(ft.Icons.CIRCLE_OUTLINED, color="#666666", size=24)
             self.checks[key]['icon'] = icon
+            
+            # Command text for manual install (hidden by default)
+            cmd_text = ft.TextField(
+                value=self.manual_commands.get(key, ""),
+                read_only=True,
+                text_size=12,
+                bgcolor="#1a1a1a",
+                border_color="#444444",
+                height=40,
+                visible=False
+            )
+            self.checks[key]['cmd_text'] = cmd_text
 
             row = ft.Container(
-                content=ft.Row(
-                    [
-                        icon,
-                        ft.Text(info['name'], size=16, color="white"),
-                    ],
-                    spacing=15,
-                ),
+                content=ft.Column([
+                    ft.Row(
+                        [
+                            icon,
+                            ft.Text(info['name'], size=16, color="white"),
+                        ],
+                        spacing=15,
+                    ),
+                    cmd_text
+                ]),
                 padding=10,
                 bgcolor="#252525",
                 border_radius=10,
@@ -136,18 +170,22 @@ class SetupWindow:
             self.checks[key]['icon'].name = ft.Icons.SYNC
             self.checks[key]['icon'].color = ft.Colors.BLUE_ACCENT
             self.checks[key]['icon'].animate_rotation = ft.Animation(1000, "linear")
+            self.checks[key]['cmd_text'].visible = False
         elif status == 'success':
             self.checks[key]['icon'].name = ft.Icons.CHECK_CIRCLE
             self.checks[key]['icon'].color = ft.Colors.GREEN_ACCENT
             self.checks[key]['icon'].animate_rotation = None
+            self.checks[key]['cmd_text'].visible = False
         elif status == 'failed':
             self.checks[key]['icon'].name = ft.Icons.CANCEL
             self.checks[key]['icon'].color = ft.Colors.RED_ACCENT
             self.checks[key]['icon'].animate_rotation = None
+            self.checks[key]['cmd_text'].visible = True # Show manual command
         elif status == 'pending':
             self.checks[key]['icon'].name = ft.Icons.CIRCLE_OUTLINED
             self.checks[key]['icon'].color = "#666666"
             self.checks[key]['icon'].animate_rotation = None
+            self.checks[key]['cmd_text'].visible = False
 
         self.checks[key]['status'] = status
         self.page.update()
@@ -252,6 +290,7 @@ class SetupWindow:
                         self.page.update()
                         return
 
+
             # Install FFmpeg
             if self.checks['ffmpeg']['status'] != 'success':
                 self.status_text.value = "Installing FFmpeg..."
@@ -263,15 +302,22 @@ class SetupWindow:
                 try:
                     if system == "Darwin":  # macOS
                         # Check Homebrew
+                        brew_path = "brew"
+                        # Try to find brew in common locations if not in PATH
+                        if not any(os.access(os.path.join(p, "brew"), os.X_OK) for p in os.environ["PATH"].split(os.pathsep)):
+                             if os.path.exists("/opt/homebrew/bin/brew"):
+                                 brew_path = "/opt/homebrew/bin/brew"
+                             elif os.path.exists("/usr/local/bin/brew"):
+                                 brew_path = "/usr/local/bin/brew"
+
                         try:
-                            subprocess.run(['brew', '--version'],
-                                         capture_output=True,
-                                         check=True)
-                            subprocess.check_call(['brew', 'install', 'ffmpeg'],
+                            subprocess.run([brew_path, '--version'], capture_output=True, check=True)
+                            subprocess.check_call([brew_path, 'install', 'ffmpeg'],
                                                 stdout=subprocess.DEVNULL,
                                                 stderr=subprocess.DEVNULL)
                             ffmpeg_installed = True
-                        except:
+                        except Exception as e:
+                            print(f"Brew install failed: {e}")
                             pass
                     elif system == "Linux":
                         subprocess.check_call(['sudo', 'apt-get', 'update', '-qq'])
@@ -284,7 +330,7 @@ class SetupWindow:
                 if ffmpeg_installed:
                     self.update_check_status('ffmpeg', 'success')
                 else:
-                    self.status_text.value = "⚠️ Could not install FFmpeg automatically"
+                    self.status_text.value = "⚠️ Could not install FFmpeg automatically. Please install it manually."
                     self.status_text.color = ft.Colors.ORANGE_ACCENT
                     self.page.update()
                     time.sleep(2)
