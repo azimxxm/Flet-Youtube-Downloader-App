@@ -1,0 +1,1 @@
+([('launcher', '/Users/azimjon/Documents/TTS/dist/launcher', 'EXECUTABLE')],)
