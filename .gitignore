@@ -72,3 +72,4 @@ flet-app.tar.gz
 # Project specific
 *.spec
 link.txt
+.DS_Store
