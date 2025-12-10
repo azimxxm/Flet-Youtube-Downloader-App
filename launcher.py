@@ -361,9 +361,9 @@ class SetupWindow:
     def show_menu(self):
         """Show the mode selection menu"""
         self.page.clean()
-        self.page.title = "YouTube Downloader - Select Mode"
-        self.page.window_width = 800
-        self.page.window_height = 600
+        self.page.title = "Media Downloader - Select Platform"
+        self.page.window_width = 900
+        self.page.window_height = 650
 
         def go_back(_e=None):
             self.show_menu()
@@ -383,6 +383,11 @@ class SetupWindow:
             self.page.clean()
             import youtube_playlist_downloader
             youtube_playlist_downloader.PlaylistDownloader(self.page, on_back=go_back)
+
+        def start_instagram(_e):
+            self.page.clean()
+            import instagram_downloader
+            instagram_downloader.InstagramDownloader(self.page, on_back=go_back)
 
         def create_option_card(title, description, icon, on_click, color):
             return ft.Container(
@@ -406,9 +411,25 @@ class SetupWindow:
             ft.Container(
                 content=ft.Column(
                     [
-                        ft.Text("Welcome to YouTube Downloader", size=32, weight=ft.FontWeight.BOLD, color="white"),
-                        ft.Text("Choose your preferred mode", size=16, color="#888888"),
-                        ft.Container(height=30),
+                        ft.Text("Welcome to Media Downloader", size=32, weight=ft.FontWeight.BOLD, color="white"),
+                        ft.Text("Choose platform and download mode", size=16, color="#888888"),
+                        ft.Container(height=20),
+                        # Instagram Card (Featured)
+                        ft.Row(
+                            [
+                                create_option_card(
+                                    "Instagram",
+                                    "Download posts, reels & stories.",
+                                    ft.Icons.CAMERA_ALT_ROUNDED,
+                                    start_instagram,
+                                    "#E4405F"
+                                ),
+                            ],
+                            alignment=ft.MainAxisAlignment.CENTER,
+                        ),
+                        ft.Container(height=10),
+                        ft.Text("YouTube Modes", size=20, weight=ft.FontWeight.BOLD, color="white"),
+                        ft.Container(height=10),
                         ft.Row(
                             [
                                 create_option_card(

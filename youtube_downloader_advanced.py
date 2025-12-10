@@ -135,14 +135,22 @@ class YouTubeDownloaderAdvanced:
                 
                 # Options
                 ft.Row([
-                    ft.Dropdown(
-                        ref=self.bind_ref("format_dropdown"),
-                        label="Quality",
-                        width=200,
-                        border_radius=10,
-                        bgcolor="#333333",
-                        border_color="#444444",
-                    ),
+                    ft.Row([
+                         ft.Dropdown(
+                            ref=self.bind_ref("format_dropdown"),
+                            label="Quality",
+                            width=220,
+                            border_radius=10,
+                            bgcolor="#333333",
+                            border_color="#444444",
+                        ),
+                        ft.IconButton(
+                            icon=ft.Icons.HELP_OUTLINE, 
+                            tooltip="See detailed format info",
+                            icon_color="#aaaaaa",
+                            on_click=self.show_details_dialog
+                        )
+                    ]),
                     ft.Checkbox(
                         ref=self.bind_ref("subtitle_checkbox"),
                         label="Subtitles",
@@ -252,6 +260,66 @@ class YouTubeDownloaderAdvanced:
         lang_dropdown = self.get_control("subtitle_lang_dropdown")
         lang_dropdown.visible = e.control.value
         self.page.update()
+        
+    def show_details_dialog(self, e):
+        if not hasattr(self, 'all_formats_data') or not self.all_formats_data:
+            return
+
+        def close_dlg(e):
+            self.page.dialog.open = False
+            self.page.update()
+
+        # Create rows for DataTable
+        rows = []
+        for fmt in self.all_formats_data:
+            rows.append(ft.DataRow(cells=[
+                ft.DataCell(ft.Text(fmt.get('ext', 'N/A'))),
+                ft.DataCell(ft.Text(fmt.get('resolution', 'N/A'))),
+                ft.DataCell(ft.Text(str(fmt.get('fps', 'N/A')))),
+                ft.DataCell(ft.Text("HDR" if fmt.get('hdr') else "-")),
+                ft.DataCell(ft.Text(fmt.get('size_str', 'N/A'))),
+                ft.DataCell(ft.Text(fmt.get('vcodec', 'N/A'), size=10)),
+                ft.DataCell(ft.Text(fmt.get('acodec', 'N/A'), size=10)),
+            ]))
+
+        dlg_table = ft.DataTable(
+            columns=[
+                ft.DataColumn(ft.Text("Ext")),
+                ft.DataColumn(ft.Text("Res")),
+                ft.DataColumn(ft.Text("FPS")),
+                ft.DataColumn(ft.Text("HDR")),
+                ft.DataColumn(ft.Text("Size")),
+                ft.DataColumn(ft.Text("VCodec")),
+                ft.DataColumn(ft.Text("ACodec")),
+            ],
+            rows=rows,
+            column_spacing=10,
+        )
+
+        dlg = ft.AlertDialog(
+            title=ft.Text("Detailed Format Info"),
+            content=ft.Container(
+                content=ft.Column([dlg_table], scroll=ft.ScrollMode.AUTO),
+                height=400,
+                width=700
+            ),
+            actions=[ft.TextButton("Close", on_click=close_dlg)],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+
+        self.page.dialog = dlg
+        dlg.open = True
+        self.page.update()
+
+    def format_bytes(self, size):
+        if not size: return "N/A"
+        power = 2**10
+        n = 0
+        power_labels = {0 : '', 1: 'K', 2: 'M', 3: 'G', 4: 'T'}
+        while size > power:
+            size /= power
+            n += 1
+        return f"{size:.2f} {power_labels[n]}B"
 
     def fetch_formats(self, e):
         url = self.url_field.value.strip()
@@ -282,20 +350,73 @@ class YouTubeDownloaderAdvanced:
                     self.get_control("video_duration").value = f"{duration // 60}:{duration % 60:02d}"
                     
                     formats = []
+                    self.all_formats_data = [] # For details dialog
+                    
                     if self.download_mode.value == "audio":
                         formats = [
-                            {'id': 'bestaudio', 'label': 'Best Quality (192 kbps)', 'height': 999},
-                            {'id': 'bestaudio[abr<=128]', 'label': 'Medium Quality (128 kbps)', 'height': 128}
+                            {'id': 'bestaudio', 'label': 'Best Quality (192 kbps)'},
+                            {'id': 'bestaudio[abr<=128]', 'label': 'Medium Quality (128 kbps)'}
                         ]
                     else:
-                        seen_resolutions = set()
-                        for f in info.get('formats', []):
-                            if f.get('vcodec') != 'none' and f.get('acodec') != 'none':
+                        all_formats = info.get('formats', [])
+                        
+                        # Store detailed info for dialog
+                        for f in all_formats:
+                            size_bytes = f.get('filesize') or f.get('filesize_approx')
+                            size_str = self.format_bytes(size_bytes) if size_bytes else "N/A"
+                            is_hdr = 'hdr' in (f.get('dynamic_range') or '').lower()
+                            
+                            self.all_formats_data.append({
+                                'format_id': f.get('format_id'),
+                                'ext': f.get('ext'),
+                                'resolution': f.get('resolution'),
+                                'fps': f.get('fps'),
+                                'hdr': is_hdr,
+                                'size_str': size_str,
+                                'vcodec': f.get('vcodec'),
+                                'acodec': f.get('acodec'),
+                                'height': f.get('height', 0)
+                            })
+
+                        # Group by height to find best variant for each resolution
+                        resolutions = {} # height -> list of formats
+                        for f in all_formats:
+                            if f.get('vcodec') != 'none':
                                 height = f.get('height')
-                                if height and height not in seen_resolutions:
-                                    seen_resolutions.add(height)
-                                    formats.append({'id': f.get('format_id'), 'label': f"{height}p", 'height': height})
-                        formats.sort(key=lambda x: x['height'], reverse=True)
+                                if height:
+                                    if height not in resolutions:
+                                        resolutions[height] = []
+                                    resolutions[height].append(f)
+                        
+                        filtered_formats = []
+                        # Sort heights desc
+                        sorted_heights = sorted(resolutions.keys(), reverse=True)
+                        
+                        for height in sorted_heights:
+                            variants = resolutions[height]
+                            
+                            # Check if ANY variant is HDR
+                            has_hdr = any('hdr' in (f.get('dynamic_range') or '').lower() for f in variants)
+                            hdr_tag = "HDR" if has_hdr else ""
+                            
+                            # Find max size (approximation of best quality)
+                            max_size = 0
+                            for f in variants:
+                                s = f.get('filesize') or f.get('filesize_approx') or 0
+                                if s > max_size: max_size = s
+                            
+                            size_label = ""
+                            if max_size:
+                                size_label = f"({self.format_bytes(max_size)})"
+                            
+                            label = f"{height}p {hdr_tag} {size_label}".strip()
+                            filtered_formats.append({'id': str(height), 'label': label, 'height': height})
+                        
+                        # Add a "Best" option at the top
+                        if filtered_formats:
+                            filtered_formats.insert(0, {'id': 'best', 'label': 'Best Available', 'height': 10000})
+
+                        formats = filtered_formats
 
                     self.formats_data = formats
                     dropdown = self.get_control("format_dropdown")
@@ -316,23 +437,44 @@ class YouTubeDownloaderAdvanced:
 
     def download_video(self, e):
         url = self.url_field.value.strip()
-        format_id = self.get_control("format_dropdown").value
+        selected_id = self.get_control("format_dropdown").value
         
-        if not url or not format_id: return
+        if not url or not selected_id: return
 
         btn = self.get_control("download_btn")
         btn.disabled = True
         btn.text = "Downloading..."
         
-        self.progress_control.start_download()
+        self.is_cancelled = False
+        
+        def cancel_download(e):
+            self.is_cancelled = True
+            self.progress_control.status_text.value = "Cancelling..."
+            self.progress_control.cancel_btn.disabled = True
+            self.progress_control.update()
+        
+        self.progress_control.start_download(on_cancel=cancel_download)
         self.page.update()
 
         def download_thread():
             try:
+                # Construct format string
+                format_string = ""
+                if self.download_mode.value == "audio":
+                    format_string = "bestaudio/best"
+                else:
+                    if selected_id == 'best':
+                        format_string = "bestvideo+bestaudio/best"
+                    else:
+                        # Request specific resolution video merged with best audio
+                        format_string = f"bestvideo[height={selected_id}]+bestaudio/best[height={selected_id}]"
+
                 ydl_opts = {
-                    'format': format_id,
+                    'format': format_string,
                     'outtmpl': f'{self.download_path}/%(title)s.%(ext)s',
                     'progress_hooks': [self.progress_hook],
+                    'quiet': True,
+                    'no_warnings': True
                 }
                 
                 if self.download_mode.value == "audio":
@@ -350,19 +492,27 @@ class YouTubeDownloaderAdvanced:
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     info = ydl.extract_info(url, download=False)
                     filename = ydl.prepare_filename(info)
+                    
+                    # Fix extension if merging happens or audio conversion
                     if self.download_mode.value == "audio":
                         filename = filename.rsplit('.', 1)[0] + '.mp3'
+                    elif self.download_mode.value == "video":
+                        filename = filename.rsplit('.', 1)[0] + '.mp4'
                     
                     ydl.download([url])
                     self.downloaded_file_path = filename
 
-                self.progress_control.complete(
-                    "✅ Download Complete!",
-                    on_show_click=self.show_file
-                )
+                if not self.is_cancelled:
+                    self.progress_control.complete(
+                        "✅ Download Complete!",
+                        on_show_click=self.show_file
+                    )
                 
             except Exception as ex:
-                self.progress_control.error(str(ex))
+                if self.is_cancelled:
+                    self.progress_control.cancelled()
+                else:
+                    self.progress_control.error(str(ex))
             finally:
                 btn.disabled = False
                 btn.text = "Download Now"
@@ -371,16 +521,36 @@ class YouTubeDownloaderAdvanced:
         threading.Thread(target=download_thread, daemon=True).start()
 
     def progress_hook(self, d):
+        if self.is_cancelled:
+            raise Exception("Cancelled")
+
         if d['status'] == 'downloading':
             try:
                 percent = 0
-                if 'total_bytes' in d and d['total_bytes'] > 0:
-                    percent = d['downloaded_bytes'] / d['total_bytes']
-                elif 'total_bytes_estimate' in d and d['total_bytes_estimate'] > 0:
-                    percent = d['downloaded_bytes'] / d['total_bytes_estimate']
+                total_bytes = d.get('total_bytes') or d.get('total_bytes_estimate') or 0
+                downloaded_bytes = d.get('downloaded_bytes', 0)
                 
-                if percent > 0:
-                    self.progress_control.update_progress(percent)
+                if total_bytes > 0:
+                    percent = downloaded_bytes / total_bytes
+                
+                # Format stats
+                speed_str = "N/A"
+                if d.get('speed'):
+                    speed_str = self.format_bytes(d['speed']) + "/s"
+                
+                eta_str = "N/A"
+                if d.get('eta'):
+                    eta_seconds = d['eta']
+                    eta_str = f"{eta_seconds // 60}:{eta_seconds % 60:02d}"
+                    
+                size_str = f"{self.format_bytes(downloaded_bytes)} / {self.format_bytes(total_bytes)}"
+                
+                self.progress_control.update_progress(
+                    percent, 
+                    speed=speed_str, 
+                    eta=eta_str, 
+                    size_info=size_str
+                )
             except Exception as e:
                 print(f"Progress Error: {e}")
 
