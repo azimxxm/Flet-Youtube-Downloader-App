@@ -6,18 +6,8 @@ import sys
 from pathlib import Path
 import threading
 import time
-from ui_components import ProgressControl
-
-def get_responsive_dimensions(page):
-    """Calculate responsive window dimensions based on screen size"""
-    try:
-        screen_width = 1440
-        screen_height = 900
-        window_width = max(700, min(950, int(screen_width * 0.65)))
-        window_height = max(750, min(1050, int(screen_height * 0.80)))
-        return window_width, window_height
-    except:
-        return 900, 900
+from ui_components import ProgressControl, RadioOptionComponent
+from utils import validate_instagram_url, check_ffmpeg_installed, get_responsive_dimensions
 
 class InstagramDownloader:
     def __init__(self, page: ft.Page, on_back=None):
@@ -47,6 +37,9 @@ class InstagramDownloader:
         self.file_picker = ft.FilePicker()
         self.file_picker.on_result = self.on_folder_selected
         self.page.dialog = self.file_picker
+
+        # Keyboard shortcuts
+        self.page.on_keyboard_event = self.on_keyboard
 
         self.media_info = None
         self.cancel_download = False
@@ -177,7 +170,7 @@ class InstagramDownloader:
         )
 
         # Progress Section
-        self.progress_control = ProgressControl(width=650)
+        self.progress_control = ProgressControl(width=650, page=self.page)
 
         # Preview Card (Hidden initially)
         self.preview_card = ft.Container(
@@ -249,18 +242,6 @@ class InstagramDownloader:
             )
         )
 
-    def create_radio_option(self, label, value, icon):
-        return ft.Container(
-            content=ft.Row([
-                ft.Radio(value=value, fill_color="#E4405F"),
-                ft.Icon(icon, size=20, color="#E4405F"),
-                ft.Text(label, size=14, color="white"),
-            ], spacing=10),
-            bgcolor="#252525",
-            padding=10,
-            border_radius=8,
-        )
-
     def create_radio_option_compact(self, label, value, icon):
         return ft.Container(
             content=ft.Column([
@@ -289,6 +270,14 @@ class InstagramDownloader:
         url = self.url_field.value.strip()
         if not url:
             self.show_error("Please enter an Instagram URL")
+            return
+
+        # Validate Instagram URL
+        is_valid, error_msg = validate_instagram_url(url)
+        if not is_valid:
+            self.url_field.error_text = error_msg
+            self.url_field.border_color = ft.Colors.RED_ACCENT
+            self.page.update()
             return
 
         # Reset UI
@@ -320,7 +309,9 @@ class InstagramDownloader:
                     self.page.run_task(self.update_preview, info)
 
             except Exception as ex:
-                self.page.run_task(self.show_error, f"Failed to analyze: {str(ex)}")
+                from utils import translate_error
+                user_msg = translate_error(ex)
+                self.page.run_task(self.show_error, f"Failed to analyze: {user_msg}")
             finally:
                 self.analyze_btn.disabled = False
                 self.analyze_btn.text = "Analyze"
@@ -399,6 +390,12 @@ class InstagramDownloader:
             self.show_error("Please analyze a link first")
             return
 
+        # Check FFmpeg installation
+        ffmpeg_ok, ffmpeg_error = check_ffmpeg_installed()
+        if not ffmpeg_ok:
+            self.progress_control.error(ffmpeg_error)
+            return
+
         self.cancel_download = False
         download_type = self.download_options.value
 
@@ -452,9 +449,10 @@ class InstagramDownloader:
 
                 elif download_type == "video":
                     ydl_opts = {
-                        'format': 'best[ext=mp4]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best',
+                        'format': 'bestvideo[vcodec=h264][ext=mp4]+bestaudio[acodec=aac][ext=m4a]/best[ext=mp4]/best',
                         'outtmpl': output_template,
                         'progress_hooks': [self.progress_hook],
+                        'merge_output_format': 'mp4',
                     }
                     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                         info = ydl.extract_info(self.media_info['webpage_url'], download=True)
@@ -575,7 +573,8 @@ class InstagramDownloader:
                     self.page.run_task(show_cancelled)
 
             except Exception as ex:
-                error_msg = str(ex)
+                from utils import translate_error
+                error_msg = translate_error(ex)
 
                 async def show_error_msg():
                     if not self.cancel_download:
@@ -611,7 +610,33 @@ class InstagramDownloader:
                     eta=eta,
                     size_info=size_info
                 )
-            except:
+            except Exception:
                 pass
         elif d['status'] == 'finished':
             self.progress_control.update_progress(1.0, "Processing...")
+            # Capture actual filename from yt-dlp
+            if 'filename' in d:
+                self.downloaded_file_path = d['filename']
+
+    def on_keyboard(self, e: ft.KeyboardEvent):
+        import platform
+        ctrl = e.ctrl or (e.meta and platform.system() == "Darwin")
+
+        if e.key == "Escape":
+            if self.on_back:
+                self.on_back(None)
+        elif ctrl and e.key.lower() == "v":
+            # Paste URL from clipboard
+            try:
+                result = subprocess.run(['pbpaste'], capture_output=True, text=True)
+                self.url_field.value = result.stdout.strip()
+                self.page.update()
+            except Exception:
+                pass
+        elif ctrl and e.key.lower() == "d":
+            # Start download
+            self.start_download(None)
+        elif ctrl and e.key.lower() == "t":
+            # Toggle theme
+            from ui_components import ThemeManager
+            ThemeManager.toggle_theme(self.page)

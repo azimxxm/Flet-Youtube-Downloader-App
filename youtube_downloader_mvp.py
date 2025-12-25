@@ -5,23 +5,8 @@ import subprocess
 import sys
 from pathlib import Path
 import threading
-from ui_components import ProgressControl
-
-def get_responsive_dimensions(page):
-    """Calculate responsive window dimensions based on screen size"""
-    try:
-        # Default responsive calculation (use 65-70% of common screen width)
-        screen_width = 1440  # Common screen width
-        screen_height = 900  # Common screen height
-
-        # Calculate responsive dimensions
-        window_width = max(700, min(950, int(screen_width * 0.65)))
-        window_height = max(750, min(1050, int(screen_height * 0.80)))
-
-        return window_width, window_height
-    except:
-        # Fallback to default sizes
-        return 900, 900
+from ui_components import ProgressControl, RadioOptionComponent
+from utils import metadata_cache, format_bytes, validate_youtube_url, check_ffmpeg_installed, get_responsive_dimensions
 
 class YouTubeDownloaderMVP:
     def __init__(self, page: ft.Page, on_back=None):
@@ -50,6 +35,9 @@ class YouTubeDownloaderMVP:
         self.file_picker = ft.FilePicker()
         self.file_picker.on_result = self.on_folder_selected
         self.page.dialog = self.file_picker
+
+        # Keyboard shortcuts
+        self.page.on_keyboard_event = self.on_keyboard
 
         self.init_ui()
 
@@ -98,8 +86,8 @@ class YouTubeDownloaderMVP:
         # Download Mode
         self.download_mode = ft.RadioGroup(
             content=ft.Row([
-                self.create_radio_option("Video (MP4)", "video", ft.Icons.VIDEOCAM),
-                self.create_radio_option("Audio (MP3)", "audio", ft.Icons.AUDIOTRACK),
+                RadioOptionComponent("Video (MP4)", "video", ft.Icons.VIDEOCAM, ft.Colors.YELLOW_ACCENT),
+                RadioOptionComponent("Audio (MP3)", "audio", ft.Icons.AUDIOTRACK, ft.Colors.YELLOW_ACCENT),
             ], alignment=ft.MainAxisAlignment.CENTER, spacing=20),
             value="video"
         )
@@ -116,7 +104,7 @@ class YouTubeDownloaderMVP:
         )
 
         # Progress Control
-        self.progress_control = ProgressControl(width=500)
+        self.progress_control = ProgressControl(width=500, page=self.page)
 
         self.download_btn = ft.Button(
             content=ft.Row([
@@ -162,19 +150,6 @@ class YouTubeDownloaderMVP:
             )
         )
 
-    def create_radio_option(self, label, value, icon):
-        return ft.Container(
-            content=ft.Row([
-                ft.Radio(value=value, fill_color=ft.Colors.YELLOW_ACCENT),
-                ft.Icon(icon, size=20, color="white"),
-                ft.Text(label, color="white")
-            ]),
-            bgcolor="#252525",
-            padding=10,
-            border_radius=10,
-            border=ft.Border.all(1, "#333333")
-        )
-
     def on_folder_selected(self, e: ft.FilePickerResultEvent):
         if e.path:
             self.download_path = e.path
@@ -191,6 +166,21 @@ class YouTubeDownloaderMVP:
 
         if not url:
             self.url_field.error_text = "Please enter a URL"
+            self.page.update()
+            return
+
+        # Validate YouTube URL
+        is_valid, error_msg = validate_youtube_url(url)
+        if not is_valid:
+            self.url_field.error_text = error_msg
+            self.url_field.border_color = ft.Colors.RED_ACCENT
+            self.page.update()
+            return
+
+        # Check FFmpeg installation
+        ffmpeg_ok, ffmpeg_error = check_ffmpeg_installed()
+        if not ffmpeg_ok:
+            self.progress_control.error(ffmpeg_error)
             self.page.update()
             return
 
@@ -217,7 +207,7 @@ class YouTubeDownloaderMVP:
                     }
                 else:
                     ydl_opts = {
-                        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+                        'format': 'bestvideo[vcodec=h264][ext=mp4]+bestaudio[acodec=aac][ext=m4a]/best[ext=mp4]/best',
                         'outtmpl': f'{self.download_path}/%(title)s.%(ext)s',
                         'progress_hooks': [self.progress_hook],
                         'merge_output_format': 'mp4',
@@ -229,15 +219,26 @@ class YouTubeDownloaderMVP:
                         'no_warnings': True,
                     }
 
+                # Check cache first to avoid duplicate extract_info call
+                cached_info = metadata_cache.get(url)
+                if cached_info:
+                    info = cached_info
+                else:
+                    # Fetch metadata with minimal options
+                    with yt_dlp.YoutubeDL({'quiet': True, 'no_warnings': True}) as ydl:
+                        info = ydl.extract_info(url, download=False)
+                    metadata_cache.set(url, info)
+
+                # Now download using the fetched/cached info
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    info = ydl.extract_info(url, download=False)
                     filename = ydl.prepare_filename(info)
 
                     # For audio, filename will have .mp3 extension
                     if self.download_mode.value == "audio":
                         filename = filename.rsplit('.', 1)[0] + '.mp3'
 
-                    ydl.download([url])
+                    # Use process_ie_result to download without re-fetching metadata
+                    ydl.process_ie_result(info, download=True)
                     self.downloaded_file_path = filename
 
                 mode_text = "Audio" if self.download_mode.value == "audio" else "Video"
@@ -247,7 +248,9 @@ class YouTubeDownloaderMVP:
                 )
 
             except Exception as ex:
-                self.progress_control.error(str(ex))
+                from utils import translate_error
+                user_msg = translate_error(ex)
+                self.progress_control.error(user_msg)
 
             finally:
                 self.download_btn.disabled = False
@@ -263,15 +266,42 @@ class YouTubeDownloaderMVP:
                     percent = d['downloaded_bytes'] / d['total_bytes']
                 elif 'total_bytes_estimate' in d and d['total_bytes_estimate'] > 0:
                     percent = d['downloaded_bytes'] / d['total_bytes_estimate']
-                
+
                 if percent > 0:
                     self.progress_control.update_progress(percent)
             except Exception:
                 pass
+        elif d['status'] == 'finished':
+            # Capture actual filename from yt-dlp
+            if 'filename' in d:
+                self.downloaded_file_path = d['filename']
 
     def show_file(self, _e):
         if self.downloaded_file_path and os.path.exists(self.downloaded_file_path):
             subprocess.run(['open', '-R', self.downloaded_file_path])
+
+    def on_keyboard(self, e: ft.KeyboardEvent):
+        import platform
+        ctrl = e.ctrl or (e.meta and platform.system() == "Darwin")
+
+        if e.key == "Escape":
+            if self.on_back:
+                self.on_back(None)
+        elif ctrl and e.key.lower() == "v":
+            # Paste URL from clipboard
+            try:
+                result = subprocess.run(['pbpaste'], capture_output=True, text=True)
+                self.url_field.value = result.stdout.strip()
+                self.page.update()
+            except Exception:
+                pass
+        elif ctrl and e.key.lower() == "d":
+            # Start download
+            self.download_video(None)
+        elif ctrl and e.key.lower() == "t":
+            # Toggle theme
+            from ui_components import ThemeManager
+            ThemeManager.toggle_theme(self.page)
 
 
 def main(page: ft.Page):

@@ -6,6 +6,7 @@ import platform
 import threading
 import time
 from pathlib import Path
+from utils import get_responsive_dimensions
 import youtube_downloader_mvp
 import youtube_downloader_advanced
 import youtube_playlist_downloader
@@ -24,35 +25,6 @@ os.environ["PATH"] += os.pathsep + os.pathsep.join(common_paths)
 # Setup complete flag file
 SETUP_COMPLETE_FLAG = Path.home() / ".youtube_downloader_setup_complete"
 
-def get_responsive_dimensions(page):
-    """Calculate responsive window dimensions based on screen size"""
-    try:
-        import subprocess
-
-        # Get screen resolution (macOS)
-        if sys.platform == "darwin":
-            result = subprocess.run(
-                ["system_profiler", "SPDisplaysDataType"],
-                capture_output=True,
-                text=True,
-                timeout=2
-            )
-            # For a simpler approach on macOS, we can use a default calculation
-            screen_width = 1440  # Common macOS screen width
-            screen_height = 900  # Common macOS screen height
-        else:
-            screen_width = 1920
-            screen_height = 1080
-
-        # Calculate responsive dimensions (use 70% of screen with min/max constraints)
-        window_width = max(600, min(900, int(screen_width * 0.65)))
-        window_height = max(700, min(1000, int(screen_height * 0.75)))
-
-        return window_width, window_height
-    except:
-        # Fallback to default sizes
-        return 800, 800
-
 class SetupWindow:
     def __init__(self, page: ft.Page):
         self.page = page
@@ -62,9 +34,16 @@ class SetupWindow:
         width, height = get_responsive_dimensions(page)
         self.page.window_width = width
         self.page.window_height = height
-        self.page.theme_mode = ft.ThemeMode.DARK
+
+        # Load saved theme preference
+        from ui_components import ThemeManager
+        self.page.theme_mode = ThemeManager.get_theme()
+
         self.page.bgcolor = "#1a1a1a"
         self.page.padding = 0
+
+        # Keyboard shortcuts
+        self.page.on_keyboard_event = self.on_keyboard
         
         # Custom Fonts
         self.page.fonts = {
@@ -288,7 +267,7 @@ class SetupWindow:
                     self.update_check_status('ffmpeg', 'success')
                 else:
                     self.update_check_status('ffmpeg', 'failed')
-            except:
+            except Exception:
                 self.update_check_status('ffmpeg', 'failed')
 
             # Check if everything is OK
@@ -334,7 +313,7 @@ class SetupWindow:
 
                         self.update_check_status('flet', 'success')
                         self.update_check_status('yt_dlp', 'success')
-                    except:
+                    except Exception:
                         self.status_text.value = "❌ Failed to install Python libraries"
                         self.status_text.color = ft.Colors.RED_ACCENT
                         self.install_btn.disabled = False
@@ -375,7 +354,7 @@ class SetupWindow:
                         subprocess.check_call(['sudo', 'apt-get', 'install', '-y', 'ffmpeg'],
                                             stdout=subprocess.DEVNULL)
                         ffmpeg_installed = True
-                except:
+                except Exception:
                     pass
 
                 if ffmpeg_installed:
@@ -536,6 +515,15 @@ class SetupWindow:
                 expand=True,
             )
         )
+
+    def on_keyboard(self, e: ft.KeyboardEvent):
+        import platform
+        ctrl = e.ctrl or (e.meta and platform.system() == "Darwin")
+
+        if ctrl and e.key.lower() == "t":
+            # Toggle theme
+            from ui_components import ThemeManager
+            ThemeManager.toggle_theme(self.page)
 
 
 def main(page: ft.Page):

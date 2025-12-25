@@ -6,18 +6,8 @@ import sys
 from pathlib import Path
 import threading
 import time
-from ui_components import ProgressControl
-
-def get_responsive_dimensions(page):
-    """Calculate responsive window dimensions based on screen size"""
-    try:
-        screen_width = 1440
-        screen_height = 900
-        window_width = max(750, min(1000, int(screen_width * 0.68)))
-        window_height = max(800, min(1100, int(screen_height * 0.85)))
-        return window_width, window_height
-    except:
-        return 950, 950
+from ui_components import ProgressControl, RadioOptionComponent
+from utils import metadata_cache, format_bytes, validate_youtube_url, check_ffmpeg_installed, get_responsive_dimensions
 
 class YouTubeDownloaderAdvanced:
     def __init__(self, page: ft.Page, on_back=None):
@@ -47,7 +37,11 @@ class YouTubeDownloaderAdvanced:
         self.file_picker.on_result = self.on_folder_selected
         self.page.dialog = self.file_picker
 
+        # Keyboard shortcuts
+        self.page.on_keyboard_event = self.on_keyboard
+
         self.formats_data = []
+        self.current_video_info = None  # Cache video metadata to avoid duplicate API calls
         self.init_ui()
 
     def init_ui(self):
@@ -109,8 +103,8 @@ class YouTubeDownloaderAdvanced:
         # Mode Selection
         self.download_mode = ft.RadioGroup(
             content=ft.Row([
-                self.create_radio_option("Video (MP4)", "video", ft.Icons.VIDEOCAM),
-                self.create_radio_option("Audio (MP3)", "audio", ft.Icons.AUDIOTRACK),
+                RadioOptionComponent("Video (MP4)", "video", ft.Icons.VIDEOCAM, ft.Colors.RED_ACCENT),
+                RadioOptionComponent("Audio (MP3)", "audio", ft.Icons.AUDIOTRACK, ft.Colors.RED_ACCENT),
             ], alignment=ft.MainAxisAlignment.CENTER, spacing=20),
             value="video",
             on_change=self.on_mode_change
@@ -125,6 +119,32 @@ class YouTubeDownloaderAdvanced:
                 ft.TextButton("Change", on_click=self.open_file_picker, style=ft.ButtonStyle(color=ft.Colors.RED_ACCENT))
             ], alignment=ft.MainAxisAlignment.CENTER),
             padding=10,
+        )
+
+        # Loading Progress View
+        self.loading_spinner = ft.Text("◐", size=40, color=ft.Colors.RED_ACCENT)
+        self.loading_progress = ft.Container(
+            content=ft.Column([
+                self.loading_spinner,
+                ft.Text(
+                    "Analyzing video...",
+                    size=16,
+                    color="white",
+                    weight=ft.FontWeight.W_500,
+                    text_align=ft.TextAlign.CENTER,
+                ),
+                ft.Text(
+                    "Please wait...",
+                    size=12,
+                    color="#888888",
+                    text_align=ft.TextAlign.CENTER,
+                ),
+            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=15),
+            padding=30,
+            bgcolor="#252525",
+            border_radius=15,
+            border=ft.Border.all(1, "#333333"),
+            visible=False,
         )
 
         # Video Info Card (Hidden initially)
@@ -210,7 +230,7 @@ class YouTubeDownloaderAdvanced:
         )
 
         # Progress Control
-        self.progress_control = ProgressControl(width=600)
+        self.progress_control = ProgressControl(width=600, page=self.page)
         self.progress_control.progress_bar.color = ft.Colors.RED_ACCENT
 
         # Main Layout
@@ -226,6 +246,7 @@ class YouTubeDownloaderAdvanced:
                             self.download_mode,
                             self.location_container,
                             ft.Container(height=20),
+                            self.loading_progress,
                             self.video_info_card,
                             ft.Container(height=20),
                             self.progress_control,
@@ -249,19 +270,6 @@ class YouTubeDownloaderAdvanced:
     def get_control(self, name):
         return self.refs[name].current
 
-    def create_radio_option(self, label, value, icon):
-        return ft.Container(
-            content=ft.Row([
-                ft.Radio(value=value, fill_color=ft.Colors.RED_ACCENT),
-                ft.Icon(icon, size=20, color="white"),
-                ft.Text(label, color="white")
-            ]),
-            bgcolor="#252525",
-            padding=10,
-            border_radius=10,
-            border=ft.Border.all(1, "#333333")
-        )
-
     def on_folder_selected(self, e: ft.FilePickerResultEvent):
         if e.path:
             self.download_path = e.path
@@ -271,7 +279,7 @@ class YouTubeDownloaderAdvanced:
     def open_file_picker(self, e):
         """Open file picker dialog"""
         self.page.dialog = self.file_picker
-        self.file_picker.get_directory_path()
+        self.page.run_task(self.file_picker.get_directory_path)
 
     def on_mode_change(self, e):
         # Hide video info if mode changes, forcing re-fetch or just reset UI
@@ -350,10 +358,10 @@ class YouTubeDownloaderAdvanced:
             self.url_field.error_text = "Please enter a URL"
             self.page.update()
             return
-        
+
         self.url_field.error_text = None
         self.fetch_btn.disabled = True
-        self.fetch_btn.text = "Analyzing..."
+        self.loading_progress.visible = True
         self.page.update()
 
         def fetch_thread():
@@ -361,108 +369,135 @@ class YouTubeDownloaderAdvanced:
                 ydl_opts = {'quiet': True, 'no_warnings': True}
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     info = ydl.extract_info(url, download=False)
-                    
-                    # Update UI with video info
-                    video_title = info.get('title', 'Unknown Title')
-                    if not video_title: video_title = 'Unknown Title'
-                    
-                    self.get_control("video_title").value = video_title
-                    
-                    duration = info.get('duration', 0)
-                    if not duration: duration = 0
-                    self.get_control("video_duration").value = f"{duration // 60}:{duration % 60:02d}"
-                    
-                    formats = []
-                    self.all_formats_data = [] # For details dialog
-                    
-                    if self.download_mode.value == "audio":
-                        formats = [
-                            {'id': 'bestaudio', 'label': 'Best Quality (192 kbps)'},
-                            {'id': 'bestaudio[abr<=128]', 'label': 'Medium Quality (128 kbps)'}
-                        ]
-                    else:
-                        all_formats = info.get('formats', [])
-                        
-                        # Store detailed info for dialog
-                        for f in all_formats:
-                            size_bytes = f.get('filesize') or f.get('filesize_approx')
-                            size_str = self.format_bytes(size_bytes) if size_bytes else "N/A"
-                            is_hdr = 'hdr' in (f.get('dynamic_range') or '').lower()
-                            
-                            self.all_formats_data.append({
-                                'format_id': f.get('format_id'),
-                                'ext': f.get('ext'),
-                                'resolution': f.get('resolution'),
-                                'fps': f.get('fps'),
-                                'hdr': is_hdr,
-                                'size_str': size_str,
-                                'vcodec': f.get('vcodec'),
-                                'acodec': f.get('acodec'),
-                                'height': f.get('height', 0)
-                            })
 
-                        # Group by height to find best variant for each resolution
-                        resolutions = {} # height -> list of formats
-                        for f in all_formats:
-                            if f.get('vcodec') != 'none':
-                                height = f.get('height')
-                                if height:
-                                    if height not in resolutions:
-                                        resolutions[height] = []
-                                    resolutions[height].append(f)
-                        
-                        filtered_formats = []
-                        # Sort heights desc
-                        sorted_heights = sorted(resolutions.keys(), reverse=True)
-                        
-                        for height in sorted_heights:
-                            variants = resolutions[height]
-                            
-                            # Check if ANY variant is HDR
-                            has_hdr = any('hdr' in (f.get('dynamic_range') or '').lower() for f in variants)
-                            hdr_tag = "HDR" if has_hdr else ""
-                            
-                            # Find max size (approximation of best quality)
-                            max_size = 0
-                            for f in variants:
-                                s = f.get('filesize') or f.get('filesize_approx') or 0
-                                if s > max_size: max_size = s
-                            
-                            size_label = ""
-                            if max_size:
-                                size_label = f"({self.format_bytes(max_size)})"
-                            
-                            label = f"{height}p {hdr_tag} {size_label}".strip()
-                            filtered_formats.append({'id': str(height), 'label': label, 'height': height})
-                        
-                        # Add a "Best" option at the top
-                        if filtered_formats:
-                            filtered_formats.insert(0, {'id': 'best', 'label': 'Best Available', 'height': 10000})
+                # Store info for later use to avoid duplicate API call
+                self.current_video_info = info
 
-                        formats = filtered_formats
+                # Update UI with video info
+                video_title = info.get('title', 'Unknown Title')
+                if not video_title: video_title = 'Unknown Title'
 
-                    self.formats_data = formats
-                    dropdown = self.get_control("format_dropdown")
-                    dropdown.options = [ft.dropdown.Option(key=f['id'], text=f['label']) for f in formats]
-                    if formats: dropdown.value = formats[0]['id']
-                    
+                self.get_control("video_title").value = video_title
+
+                duration = info.get('duration', 0)
+                if not duration: duration = 0
+                self.get_control("video_duration").value = f"{duration // 60}:{duration % 60:02d}"
+
+                formats = []
+                self.all_formats_data = [] # For details dialog
+
+                if self.download_mode.value == "audio":
+                    formats = [
+                        {'id': 'bestaudio', 'label': 'Best Quality (192 kbps)'},
+                        {'id': 'bestaudio[abr<=128]', 'label': 'Medium Quality (128 kbps)'}
+                    ]
+                else:
+                    all_formats = info.get('formats', [])
+
+                    # Store detailed info for dialog
+                    for f in all_formats:
+                        size_bytes = f.get('filesize') or f.get('filesize_approx')
+                        size_str = self.format_bytes(size_bytes) if size_bytes else "N/A"
+                        is_hdr = 'hdr' in (f.get('dynamic_range') or '').lower()
+
+                        self.all_formats_data.append({
+                            'format_id': f.get('format_id'),
+                            'ext': f.get('ext'),
+                            'resolution': f.get('resolution'),
+                            'fps': f.get('fps'),
+                            'hdr': is_hdr,
+                            'size_str': size_str,
+                            'vcodec': f.get('vcodec'),
+                            'acodec': f.get('acodec'),
+                            'height': f.get('height', 0)
+                        })
+
+                    # Group by height to find best variant for each resolution
+                    resolutions = {} # height -> list of formats
+                    for f in all_formats:
+                        if f.get('vcodec') != 'none':
+                            height = f.get('height')
+                            if height:
+                                if height not in resolutions:
+                                    resolutions[height] = []
+                                resolutions[height].append(f)
+
+                    filtered_formats = []
+                    # Sort heights desc
+                    sorted_heights = sorted(resolutions.keys(), reverse=True)
+
+                    for height in sorted_heights:
+                        variants = resolutions[height]
+
+                        # Check if ANY variant is HDR
+                        has_hdr = any('hdr' in (f.get('dynamic_range') or '').lower() for f in variants)
+                        hdr_tag = "HDR" if has_hdr else ""
+
+                        # Find max size (approximation of best quality)
+                        max_size = 0
+                        for f in variants:
+                            s = f.get('filesize') or f.get('filesize_approx') or 0
+                            if s > max_size: max_size = s
+
+                        size_label = ""
+                        if max_size:
+                            size_label = f"({self.format_bytes(max_size)})"
+
+                        label = f"{height}p {hdr_tag} {size_label}".strip()
+                        filtered_formats.append({'id': str(height), 'label': label, 'height': height})
+
+                    # Add a "Best" option at the top
+                    if filtered_formats:
+                        filtered_formats.insert(0, {'id': 'best', 'label': 'Best Available', 'height': 10000})
+
+                    formats = filtered_formats
+
+                self.formats_data = formats
+                dropdown = self.get_control("format_dropdown")
+                dropdown.options = [ft.dropdown.Option(key=f['id'], text=f['label']) for f in formats]
+                if formats: dropdown.value = formats[0]['id']
+
+                async def update_ui_success():
+                    self.loading_progress.visible = False
                     self.video_info_card.visible = True
                     self.video_info_card.opacity = 1
-                    
+                    self.fetch_btn.disabled = False
+                    self.page.update()
+
+                self.page.run_task(update_ui_success)
+
             except Exception as ex:
-                self.url_field.error_text = f"Error: {str(ex)}"
-            finally:
-                self.fetch_btn.disabled = False
-                self.fetch_btn.text = "Analyze Video"
-                self.page.update()
+                from utils import translate_error
+                async def update_ui_error():
+                    self.loading_progress.visible = False
+                    self.url_field.error_text = translate_error(ex)
+                    self.fetch_btn.disabled = False
+                    self.page.update()
+
+                self.page.run_task(update_ui_error)
 
         threading.Thread(target=fetch_thread, daemon=True).start()
 
     def download_video(self, e):
         url = self.url_field.value.strip()
         selected_id = self.get_control("format_dropdown").value
-        
+
         if not url or not selected_id: return
+
+        # Validate YouTube URL
+        is_valid, error_msg = validate_youtube_url(url)
+        if not is_valid:
+            self.url_field.error_text = error_msg
+            self.url_field.border_color = ft.Colors.RED_ACCENT
+            self.page.update()
+            return
+
+        # Check FFmpeg installation
+        ffmpeg_ok, ffmpeg_error = check_ffmpeg_installed()
+        if not ffmpeg_ok:
+            self.progress_control.error(ffmpeg_error)
+            self.page.update()
+            return
 
         btn = self.get_control("download_btn")
         btn.disabled = True
@@ -481,16 +516,16 @@ class YouTubeDownloaderAdvanced:
 
         def download_thread():
             try:
-                # Construct format string
+                # Construct format string (QuickTime compatible with h264 + aac)
                 format_string = ""
                 if self.download_mode.value == "audio":
-                    format_string = "bestaudio/best"
+                    format_string = "bestaudio[acodec=aac]/bestaudio/best"
                 else:
                     if selected_id == 'best':
-                        format_string = "bestvideo+bestaudio/best"
+                        format_string = "bestvideo[vcodec=h264][ext=mp4]+bestaudio[acodec=aac][ext=m4a]/best[ext=mp4]/best"
                     else:
-                        # Request specific resolution video merged with best audio
-                        format_string = f"bestvideo[height={selected_id}]+bestaudio/best[height={selected_id}]"
+                        # Request specific resolution video merged with best audio (h264 + aac for QuickTime)
+                        format_string = f"bestvideo[vcodec=h264][height={selected_id}][ext=mp4]+bestaudio[acodec=aac][ext=m4a]/bestvideo[height={selected_id}][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best"
 
                 ydl_opts = {
                     'format': format_string,
@@ -532,10 +567,11 @@ class YouTubeDownloaderAdvanced:
                     )
                 
             except Exception as ex:
+                from utils import translate_error
                 if self.is_cancelled:
                     self.progress_control.cancelled()
                 else:
-                    self.progress_control.error(str(ex))
+                    self.progress_control.error(translate_error(ex))
             finally:
                 btn.disabled = False
                 btn.text = "Download Now"
@@ -569,17 +605,45 @@ class YouTubeDownloaderAdvanced:
                 size_str = f"{self.format_bytes(downloaded_bytes)} / {self.format_bytes(total_bytes)}"
                 
                 self.progress_control.update_progress(
-                    percent, 
-                    speed=speed_str, 
-                    eta=eta_str, 
+                    percent,
+                    speed=speed_str,
+                    eta=eta_str,
                     size_info=size_str
                 )
             except Exception as e:
                 print(f"Progress Error: {e}")
+        elif d['status'] == 'finished':
+            # Capture actual filename from yt-dlp
+            if 'filename' in d:
+                self.downloaded_file_path = d['filename']
 
     def show_file(self, e):
         if hasattr(self, 'downloaded_file_path') and os.path.exists(self.downloaded_file_path):
             subprocess.run(['open', '-R', self.downloaded_file_path])
+
+    def on_keyboard(self, e: ft.KeyboardEvent):
+        import platform
+        ctrl = e.ctrl or (e.meta and platform.system() == "Darwin")
+
+        if e.key == "Escape":
+            if self.on_back:
+                self.on_back(None)
+        elif ctrl and e.key.lower() == "v":
+            # Paste URL from clipboard
+            try:
+                result = subprocess.run(['pbpaste'], capture_output=True, text=True)
+                self.url_field.value = result.stdout.strip()
+                self.page.update()
+            except Exception:
+                pass
+        elif ctrl and e.key.lower() == "d":
+            # Start download
+            self.download_video(None)
+        elif ctrl and e.key.lower() == "t":
+            # Toggle theme
+            from ui_components import ThemeManager
+            ThemeManager.toggle_theme(self.page)
+
 
 def main(page: ft.Page):
     YouTubeDownloaderAdvanced(page)

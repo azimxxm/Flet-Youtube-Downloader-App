@@ -7,17 +7,8 @@ from pathlib import Path
 import threading
 import concurrent.futures
 from threading import Lock
-
-def get_responsive_dimensions(page):
-    """Calculate responsive window dimensions based on screen size"""
-    try:
-        screen_width = 1440
-        screen_height = 900
-        window_width = max(750, min(1000, int(screen_width * 0.68)))
-        window_height = max(800, min(1100, int(screen_height * 0.85)))
-        return window_width, window_height
-    except:
-        return 950, 950
+from ui_components import RadioOptionComponent
+from utils import validate_youtube_url, check_ffmpeg_installed, get_responsive_dimensions
 
 class VideoItem:
     def __init__(self, title, url, duration, thumbnail):
@@ -66,6 +57,9 @@ class PlaylistDownloader:
         # Parallel download settings
         self.max_parallel = 2
         self.ui_lock = Lock()
+
+        # Keyboard shortcuts
+        self.page.on_keyboard_event = self.on_keyboard
 
         self.init_ui()
 
@@ -128,8 +122,8 @@ class PlaylistDownloader:
         # Mode Selection
         self.download_mode = ft.RadioGroup(
             content=ft.Row([
-                self.create_radio_option("Video (MP4)", "video", ft.Icons.VIDEOCAM),
-                self.create_radio_option("Audio (MP3)", "audio", ft.Icons.AUDIOTRACK),
+                RadioOptionComponent("Video (MP4)", "video", ft.Icons.VIDEOCAM, ft.Colors.BLUE_ACCENT),
+                RadioOptionComponent("Audio (MP3)", "audio", ft.Icons.AUDIOTRACK, ft.Colors.BLUE_ACCENT),
             ], alignment=ft.MainAxisAlignment.CENTER, spacing=20),
             value="video"
         )
@@ -171,6 +165,32 @@ class PlaylistDownloader:
 
         self.status_text = ft.Text("", size=14, color="#aaaaaa")
 
+        # Loading Progress View
+        self.loading_spinner = ft.Text("◐", size=40, color=ft.Colors.BLUE_ACCENT)
+        self.loading_progress = ft.Container(
+            content=ft.Column([
+                self.loading_spinner,
+                ft.Text(
+                    "Analyzing playlist...",
+                    size=16,
+                    color="white",
+                    weight=ft.FontWeight.W_500,
+                    text_align=ft.TextAlign.CENTER,
+                ),
+                ft.Text(
+                    "Please wait...",
+                    size=12,
+                    color="#888888",
+                    text_align=ft.TextAlign.CENTER,
+                ),
+            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=15),
+            padding=30,
+            bgcolor="#252525",
+            border_radius=15,
+            border=ft.Border.all(1, "#333333"),
+            visible=False,
+        )
+
         self.download_btn = ft.Button(
             content=ft.Row([
                 ft.Icon(ft.Icons.DOWNLOAD, color="white"),
@@ -198,6 +218,7 @@ class PlaylistDownloader:
                             self.download_mode,
                             self.location_container,
                             self.status_text,
+                            self.loading_progress,
                             ft.Container(height=10),
                             ft.Row([self.select_all_checkbox, self.download_info], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                             self.video_list_container,
@@ -212,19 +233,6 @@ class PlaylistDownloader:
             )
         )
 
-    def create_radio_option(self, label, value, icon):
-        return ft.Container(
-            content=ft.Row([
-                ft.Radio(value=value, fill_color=ft.Colors.BLUE_ACCENT),
-                ft.Icon(icon, size=20, color="white"),
-                ft.Text(label, color="white")
-            ]),
-            bgcolor="#252525",
-            padding=10,
-            border_radius=10,
-            border=ft.Border.all(1, "#333333")
-        )
-
     def on_folder_selected(self, e: ft.FilePickerResultEvent):
         if e.path:
             self.download_path = e.path
@@ -234,7 +242,7 @@ class PlaylistDownloader:
     def open_file_picker(self, e):
         """Open file picker dialog"""
         self.page.dialog = self.file_picker
-        self.file_picker.get_directory_path()
+        self.page.run_task(self.file_picker.get_directory_path)
 
     def toggle_select_all(self, e):
         select_all = e.control.value
@@ -263,10 +271,19 @@ class PlaylistDownloader:
             self.url_field.error_text = "Please enter a URL"
             self.page.update()
             return
-        
+
+        # Validate YouTube URL
+        is_valid, error_msg = validate_youtube_url(url)
+        if not is_valid:
+            self.url_field.error_text = error_msg
+            self.url_field.border_color = ft.Colors.RED_ACCENT
+            self.page.update()
+            return
+
         self.url_field.error_text = None
         self.fetch_btn.disabled = True
-        self.fetch_btn.text = "Loading..."
+        self.status_text.value = ""
+        self.loading_progress.visible = True
         self.page.update()
 
         def fetch_thread():
@@ -274,7 +291,7 @@ class PlaylistDownloader:
                 ydl_opts = {'quiet': True, 'no_warnings': True, 'extract_flat': 'in_playlist'}
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     info = ydl.extract_info(url, download=False)
-                    
+
                     self.videos = []
                     if 'entries' in info:
                         for entry in info['entries']:
@@ -298,7 +315,7 @@ class PlaylistDownloader:
 
                     for video in self.videos:
                         duration = f"{video.duration // 60}:{video.duration % 60:02d}"
-                        
+
                         checkbox = ft.Checkbox(value=True, on_change=lambda e, v=video: self.on_video_select(e, v), fill_color=ft.Colors.BLUE_ACCENT)
                         status_icon = ft.Icon(ft.Icons.CIRCLE_OUTLINED, color="#666666", size=20)
                         progress_bar = ft.ProgressBar(value=0, width=100, visible=False, color=ft.Colors.BLUE_ACCENT, bgcolor="#444444")
@@ -320,33 +337,52 @@ class PlaylistDownloader:
                             padding=10,
                             border_radius=8
                         )
-                        
+
                         self.video_controls.append({
                             'video': video, 'checkbox': checkbox, 'container': row,
                             'status_icon': status_icon, 'progress_bar': progress_bar, 'show_file_btn': show_btn
                         })
                         self.video_list.controls.append(row)
 
-                    self.status_text.value = f"✅ Found {len(self.videos)} videos"
-                    self.status_text.color = ft.Colors.GREEN_ACCENT
-                    self.select_all_checkbox.visible = True
-                    self.video_list_container.visible = True
-                    self.download_info.value = f"📥 {len(self.videos)} videos selected"
-                    self.download_btn.visible = True
+                    async def update_ui_success():
+                        self.loading_progress.visible = False
+                        self.status_text.value = f"✅ Found {len(self.videos)} videos"
+                        self.status_text.color = ft.Colors.GREEN_ACCENT
+                        self.select_all_checkbox.visible = True
+                        self.video_list_container.visible = True
+                        self.download_info.value = f"📥 {len(self.videos)} videos selected"
+                        self.download_btn.visible = True
+                        self.fetch_btn.disabled = False
+                        self.page.update()
+
+                    self.page.run_task(update_ui_success)
 
             except Exception as ex:
-                self.status_text.value = f"Error: {str(ex)}"
-                self.status_text.color = ft.Colors.RED_ACCENT
-            finally:
-                self.fetch_btn.disabled = False
-                self.fetch_btn.text = "Load Playlist"
-                self.page.update()
+                from utils import translate_error
+                user_msg = translate_error(ex)
+
+                async def update_ui_error():
+                    self.loading_progress.visible = False
+                    self.status_text.value = f"❌ Error: {user_msg}"
+                    self.status_text.color = ft.Colors.RED_ACCENT
+                    self.fetch_btn.disabled = False
+                    self.page.update()
+
+                self.page.run_task(update_ui_error)
 
         threading.Thread(target=fetch_thread, daemon=True).start()
 
     def download_selected(self, _e):
         selected_videos = [v for v in self.videos if v.selected]
         if not selected_videos: return
+
+        # Check FFmpeg installation
+        ffmpeg_ok, ffmpeg_error = check_ffmpeg_installed()
+        if not ffmpeg_ok:
+            self.status_text.value = f"❌ Error: {ffmpeg_error}"
+            self.status_text.color = ft.Colors.RED_ACCENT
+            self.page.update()
+            return
 
         self.download_btn.disabled = True
         self.fetch_btn.disabled = True
@@ -371,7 +407,8 @@ class PlaylistDownloader:
                             if 'total_bytes' in d and d['total_bytes'] > 0:
                                 percent = d['downloaded_bytes'] / d['total_bytes']
                                 with self.ui_lock: control['progress_bar'].value = percent; self.page.update()
-                        except: pass
+                        except Exception:
+                            pass
 
                 ydl_opts = {
                     'outtmpl': f'{self.download_path}/%(title)s.%(ext)s',
@@ -382,7 +419,7 @@ class PlaylistDownloader:
                 if self.download_mode.value == "audio":
                     ydl_opts.update({'format': 'bestaudio/best', 'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}]})
                 else:
-                    ydl_opts.update({'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', 'merge_output_format': 'mp4'})
+                    ydl_opts.update({'format': 'bestvideo[vcodec=h264][ext=mp4]+bestaudio[acodec=aac][ext=m4a]/best[ext=mp4]/best', 'merge_output_format': 'mp4'})
 
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     info = ydl.extract_info(video_url, download=False)
@@ -426,6 +463,30 @@ class PlaylistDownloader:
                 self.page.update()
 
         threading.Thread(target=download_thread, daemon=True).start()
+
+    def on_keyboard(self, e: ft.KeyboardEvent):
+        import platform
+        ctrl = e.ctrl or (e.meta and platform.system() == "Darwin")
+
+        if e.key == "Escape":
+            if self.on_back:
+                self.on_back(None)
+        elif ctrl and e.key.lower() == "v":
+            # Paste URL from clipboard
+            try:
+                result = subprocess.run(['pbpaste'], capture_output=True, text=True)
+                self.url_field.value = result.stdout.strip()
+                self.page.update()
+            except Exception:
+                pass
+        elif ctrl and e.key.lower() == "d":
+            # Start download
+            self.download_selected(None)
+        elif ctrl and e.key.lower() == "t":
+            # Toggle theme
+            from ui_components import ThemeManager
+            ThemeManager.toggle_theme(self.page)
+
 
 def main(page: ft.Page):
     PlaylistDownloader(page)
