@@ -170,39 +170,45 @@ class SetupWindow:
         )
 
         self.page.add(
-            ft.Column(
-                [
-                    ft.Container(
-                        content=ft.Column(
-                            [
-                                ft.Container(
-                                    content=ft.Column([
-                                        ft.Icon(ft.Icons.SETTINGS_SUGGEST, size=50, color=ft.Colors.BLUE_ACCENT),
-                                        ft.Text("System Check", size=28, weight=ft.FontWeight.BOLD, color="white"),
-                                        ft.Text("Verifying environment requirements...", size=14, color="#888888"),
-                                    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                                    padding=ft.Padding.only(bottom=20),
-                                ),
-                                check_list,
-                                ft.Container(height=20),
-                                self.status_text,
-                                ft.Container(height=10),
-                                ft.Row(
-                                    [self.install_btn, self.get_started_btn],
-                                    alignment=ft.MainAxisAlignment.CENTER,
-                                ),
-                            ],
-                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                        ),
-                        padding=40,
-                        gradient=ft.LinearGradient(
-                            begin=ft.Alignment.TOP_CENTER,
-                            end=ft.Alignment.BOTTOM_CENTER,
-                            colors=["#2d2d2d", "#1a1a1a"],
-                        ),
-                    )
-                ],
-                scroll=ft.ScrollMode.AUTO,
+            ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Container(
+                            content=ft.Column(
+                                [
+                                    ft.Container(
+                                        content=ft.Column([
+                                            ft.Icon(ft.Icons.SETTINGS_SUGGEST, size=50, color=ft.Colors.BLUE_ACCENT),
+                                            ft.Text("System Check", size=28, weight=ft.FontWeight.BOLD, color="white"),
+                                            ft.Text("Verifying environment requirements...", size=14, color="#888888"),
+                                        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                                        padding=ft.Padding.only(bottom=20),
+                                    ),
+                                    check_list,
+                                    ft.Container(height=20),
+                                    self.status_text,
+                                    ft.Container(height=10),
+                                    ft.Row(
+                                        [self.install_btn, self.get_started_btn],
+                                        alignment=ft.MainAxisAlignment.CENTER,
+                                    ),
+                                ],
+                                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                                expand=True,
+                            ),
+                            padding=40,
+                            gradient=ft.LinearGradient(
+                                begin=ft.Alignment.TOP_CENTER,
+                                end=ft.Alignment.BOTTOM_CENTER,
+                                colors=["#2d2d2d", "#1a1a1a"],
+                            ),
+                            expand=True,
+                        )
+                    ],
+                    scroll=ft.ScrollMode.AUTO,
+                    expand=True,
+                ),
+                bgcolor="#1a1a1a",
                 expand=True,
             )
         )
@@ -458,69 +464,75 @@ class SetupWindow:
             )
 
         self.page.add(
-            ft.Column(
-                [
-                    ft.Container(
-                        content=ft.Column(
-                            [
-                                ft.Text("Welcome to Media Downloader", size=32, weight=ft.FontWeight.BOLD, color="white"),
-                                ft.Text("Choose platform and download mode", size=16, color="#888888"),
-                                ft.Container(height=20),
-                                # Instagram Card (Featured)
-                                ft.Row(
-                                    [
-                                        create_option_card(
-                                            "Instagram",
-                                            "Download posts, reels & stories.",
-                                            ft.Icons.CAMERA_ALT_ROUNDED,
-                                            start_instagram,
-                                            "#E4405F"
-                                        ),
-                                    ],
-                                    alignment=ft.MainAxisAlignment.CENTER,
-                                ),
-                                ft.Container(height=10),
-                                ft.Text("YouTube Modes", size=20, weight=ft.FontWeight.BOLD, color="white"),
-                                ft.Container(height=10),
-                                ft.Row(
-                                    [
-                                        create_option_card(
-                                            "Simple",
-                                            "Quick & easy download. Best for single videos.",
-                                            ft.Icons.BOLT,
-                                            start_mvp,
-                                            ft.Colors.YELLOW_ACCENT
-                                        ),
-                                        create_option_card(
-                                            "Advanced",
-                                            "Choose quality, format & subtitles.",
-                                            ft.Icons.TUNE,
-                                            start_advanced,
-                                            ft.Colors.RED_ACCENT
-                                        ),
-                                        create_option_card(
-                                            "Playlist",
-                                            "Download entire playlists at once.",
-                                            ft.Icons.PLAYLIST_PLAY,
-                                            start_playlist,
-                                            ft.Colors.BLUE_ACCENT
-                                        ),
-                                    ],
-                                    alignment=ft.MainAxisAlignment.CENTER,
-                                    spacing=20,
-                                ),
-                            ],
-                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                        ),
-                        padding=40,
-                        gradient=ft.LinearGradient(
-                            begin=ft.Alignment.TOP_CENTER,
-                            end=ft.Alignment.BOTTOM_CENTER,
-                            colors=["#2d2d2d", "#1a1a1a"],
-                        ),
-                    )
-                ],
-                scroll=ft.ScrollMode.AUTO,
+            ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Container(
+                            content=ft.Column(
+                                [
+                                    ft.Text("Welcome to Media Downloader", size=32, weight=ft.FontWeight.BOLD, color="white"),
+                                    ft.Text("Choose platform and download mode", size=16, color="#888888"),
+                                    ft.Container(height=20),
+                                    # Instagram Card (Featured)
+                                    ft.Row(
+                                        [
+                                            create_option_card(
+                                                "Instagram",
+                                                "Download posts, reels & stories.",
+                                                ft.Icons.CAMERA_ALT_ROUNDED,
+                                                start_instagram,
+                                                "#E4405F"
+                                            ),
+                                        ],
+                                        alignment=ft.MainAxisAlignment.CENTER,
+                                    ),
+                                    ft.Container(height=10),
+                                    ft.Text("YouTube Modes", size=20, weight=ft.FontWeight.BOLD, color="white"),
+                                    ft.Container(height=10),
+                                    ft.Row(
+                                        [
+                                            create_option_card(
+                                                "Simple",
+                                                "Quick & easy download. Best for single videos.",
+                                                ft.Icons.BOLT,
+                                                start_mvp,
+                                                ft.Colors.YELLOW_ACCENT
+                                            ),
+                                            create_option_card(
+                                                "Advanced",
+                                                "Choose quality, format & subtitles.",
+                                                ft.Icons.TUNE,
+                                                start_advanced,
+                                                ft.Colors.RED_ACCENT
+                                            ),
+                                            create_option_card(
+                                                "Playlist",
+                                                "Download entire playlists at once.",
+                                                ft.Icons.PLAYLIST_PLAY,
+                                                start_playlist,
+                                                ft.Colors.BLUE_ACCENT
+                                            ),
+                                        ],
+                                        alignment=ft.MainAxisAlignment.CENTER,
+                                        spacing=20,
+                                    ),
+                                ],
+                                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                                expand=True,
+                            ),
+                            padding=40,
+                            gradient=ft.LinearGradient(
+                                begin=ft.Alignment.TOP_CENTER,
+                                end=ft.Alignment.BOTTOM_CENTER,
+                                colors=["#2d2d2d", "#1a1a1a"],
+                            ),
+                            expand=True,
+                        )
+                    ],
+                    scroll=ft.ScrollMode.AUTO,
+                    expand=True,
+                ),
+                bgcolor="#1a1a1a",
                 expand=True,
             )
         )

@@ -47,8 +47,9 @@ class YouTubeDownloaderMVP:
         self.download_path = str(Path.home() / "Downloads")
 
         # FilePicker for folder selection
-        self.file_picker = ft.FilePicker(on_result=self.on_folder_selected)
-        self.page.overlay.append(self.file_picker)
+        self.file_picker = ft.FilePicker()
+        self.file_picker.on_result = self.on_folder_selected
+        self.page.dialog = self.file_picker
 
         self.init_ui()
 
@@ -109,7 +110,7 @@ class YouTubeDownloaderMVP:
             content=ft.Row([
                 ft.Icon(ft.Icons.FOLDER_OPEN, size=16, color="#888888"),
                 self.location_text,
-                ft.TextButton("Change", on_click=lambda _: self.file_picker.get_directory_path(), style=ft.ButtonStyle(color=ft.Colors.YELLOW_ACCENT))
+                ft.TextButton("Change", on_click=self.open_file_picker, style=ft.ButtonStyle(color=ft.Colors.YELLOW_ACCENT))
             ], alignment=ft.MainAxisAlignment.CENTER),
             padding=10,
         )
@@ -134,25 +135,30 @@ class YouTubeDownloaderMVP:
         self.downloaded_file_path = None
 
         self.page.add(
-            ft.Column(
-                [
-                    self.header,
-                    ft.Container(
-                        content=ft.Column([
-                            self.url_field,
-                            ft.Container(height=10),
-                            self.download_mode,
-                            self.location_container,
-                            ft.Container(height=20),
-                            self.download_btn,
-                            ft.Container(height=20),
-                            self.progress_control,
-                        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                        padding=30,
-                    )
-                ],
-                scroll=ft.ScrollMode.AUTO,
-                expand=True
+            ft.Container(
+                content=ft.Column(
+                    [
+                        self.header,
+                        ft.Container(
+                            content=ft.Column([
+                                self.url_field,
+                                ft.Container(height=10),
+                                self.download_mode,
+                                self.location_container,
+                                ft.Container(height=20),
+                                self.download_btn,
+                                ft.Container(height=20),
+                                self.progress_control,
+                            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, expand=True),
+                            padding=30,
+                            expand=True,
+                        )
+                    ],
+                    scroll=ft.ScrollMode.AUTO,
+                    expand=True,
+                ),
+                bgcolor="#1a1a1a",
+                expand=True,
             )
         )
 
@@ -174,6 +180,11 @@ class YouTubeDownloaderMVP:
             self.download_path = e.path
             self.location_text.value = e.path
             self.page.update()
+
+    def open_file_picker(self, e):
+        """Open file picker dialog"""
+        self.page.dialog = self.file_picker
+        self.file_picker.get_directory_path()
 
     def download_video(self, e):
         url = self.url_field.value.strip()

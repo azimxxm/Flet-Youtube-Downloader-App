@@ -44,8 +44,9 @@ class InstagramDownloader:
         Path(self.download_path).mkdir(parents=True, exist_ok=True)
 
         # FilePicker
-        self.file_picker = ft.FilePicker(on_result=self.on_folder_selected)
-        self.page.overlay.append(self.file_picker)
+        self.file_picker = ft.FilePicker()
+        self.file_picker.on_result = self.on_folder_selected
+        self.page.dialog = self.file_picker
 
         self.media_info = None
         self.cancel_download = False
@@ -172,7 +173,7 @@ class InstagramDownloader:
             icon=ft.Icons.FOLDER_OPEN,
             icon_color="#E4405F",
             tooltip="Change Folder",
-            on_click=lambda _: self.file_picker.get_directory_path(),
+            on_click=self.open_file_picker,
         )
 
         # Progress Section
@@ -278,6 +279,11 @@ class InstagramDownloader:
             self.download_path = e.path
             self.folder_path_text.value = f"📁 {Path(self.download_path).name}"
             self.page.update()
+
+    def open_file_picker(self, e):
+        """Open file picker dialog"""
+        self.page.dialog = self.file_picker
+        self.file_picker.get_directory_path()
 
     def analyze_media(self, e):
         url = self.url_field.value.strip()

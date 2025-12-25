@@ -43,8 +43,9 @@ class YouTubeDownloaderAdvanced:
         self.download_path = str(Path.home() / "Downloads")
 
         # FilePicker
-        self.file_picker = ft.FilePicker(on_result=self.on_folder_selected)
-        self.page.overlay.append(self.file_picker)
+        self.file_picker = ft.FilePicker()
+        self.file_picker.on_result = self.on_folder_selected
+        self.page.dialog = self.file_picker
 
         self.formats_data = []
         self.init_ui()
@@ -121,7 +122,7 @@ class YouTubeDownloaderAdvanced:
             content=ft.Row([
                 ft.Icon(ft.Icons.FOLDER_OPEN, size=16, color="#888888"),
                 self.location_text,
-                ft.TextButton("Change", on_click=lambda _: self.file_picker.get_directory_path(), style=ft.ButtonStyle(color=ft.Colors.RED_ACCENT))
+                ft.TextButton("Change", on_click=self.open_file_picker, style=ft.ButtonStyle(color=ft.Colors.RED_ACCENT))
             ], alignment=ft.MainAxisAlignment.CENTER),
             padding=10,
         )
@@ -266,6 +267,11 @@ class YouTubeDownloaderAdvanced:
             self.download_path = e.path
             self.location_text.value = e.path
             self.page.update()
+
+    def open_file_picker(self, e):
+        """Open file picker dialog"""
+        self.page.dialog = self.file_picker
+        self.file_picker.get_directory_path()
 
     def on_mode_change(self, e):
         # Hide video info if mode changes, forcing re-fetch or just reset UI

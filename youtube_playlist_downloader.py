@@ -55,8 +55,9 @@ class PlaylistDownloader:
         self.download_path = str(Path.home() / "Downloads")
 
         # FilePicker for folder selection
-        self.file_picker = ft.FilePicker(on_result=self.on_folder_selected)
-        self.page.overlay.append(self.file_picker)
+        self.file_picker = ft.FilePicker()
+        self.file_picker.on_result = self.on_folder_selected
+        self.page.dialog = self.file_picker
 
         self.videos = []
         self.video_controls = []
@@ -139,7 +140,7 @@ class PlaylistDownloader:
             content=ft.Row([
                 ft.Icon(ft.Icons.FOLDER_OPEN, size=16, color="#888888"),
                 self.location_text,
-                ft.TextButton("Change", on_click=lambda _: self.file_picker.get_directory_path(), style=ft.ButtonStyle(color=ft.Colors.BLUE_ACCENT))
+                ft.TextButton("Change", on_click=self.open_file_picker, style=ft.ButtonStyle(color=ft.Colors.BLUE_ACCENT))
             ], alignment=ft.MainAxisAlignment.CENTER),
             padding=10,
         )
@@ -153,6 +154,8 @@ class PlaylistDownloader:
             border_radius=10,
             border=ft.Border.all(1, "#333333"),
             padding=10,
+            expand=True,
+            visible=False,
         )
 
         # Controls
@@ -227,6 +230,11 @@ class PlaylistDownloader:
             self.download_path = e.path
             self.location_text.value = e.path
             self.page.update()
+
+    def open_file_picker(self, e):
+        """Open file picker dialog"""
+        self.page.dialog = self.file_picker
+        self.file_picker.get_directory_path()
 
     def toggle_select_all(self, e):
         select_all = e.control.value
@@ -322,6 +330,7 @@ class PlaylistDownloader:
                     self.status_text.value = f"✅ Found {len(self.videos)} videos"
                     self.status_text.color = ft.Colors.GREEN_ACCENT
                     self.select_all_checkbox.visible = True
+                    self.video_list_container.visible = True
                     self.download_info.value = f"📥 {len(self.videos)} videos selected"
                     self.download_btn.visible = True
 
