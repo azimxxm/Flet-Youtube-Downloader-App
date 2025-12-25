@@ -28,12 +28,13 @@ class ProgressControl(ft.Column):
             visible=False
         )
 
-        self.cancel_btn = ft.ElevatedButton(
-            "Cancel",
-            icon=ft.Icons.CANCEL,
-            color="white",
-            bgcolor=ft.Colors.RED_600,
+        self.cancel_btn = ft.Button(
+            content=ft.Row([
+                ft.Icon(ft.Icons.CANCEL, color="white"),
+                ft.Text("Cancel", color="white"),
+            ], spacing=8),
             style=ft.ButtonStyle(
+                bgcolor=ft.Colors.RED_600,
                 shape=ft.RoundedRectangleBorder(radius=8),
                 padding=10,
             ),
@@ -42,11 +43,13 @@ class ProgressControl(ft.Column):
             on_click=None # Set by parent
         )
 
-        self.show_file_btn = ft.ElevatedButton(
-            "Show in Finder", 
-            icon=ft.Icons.FOLDER,
+        self.show_file_btn = ft.Button(
+            content=ft.Row([
+                ft.Icon(ft.Icons.FOLDER, color="white"),
+                ft.Text("Show in Finder", color="white"),
+            ], spacing=8),
             visible=False,
-            style=ft.ButtonStyle(color="white", bgcolor="#333333"),
+            style=ft.ButtonStyle(bgcolor="#333333"),
             on_click=None # To be set by parent
         )
         

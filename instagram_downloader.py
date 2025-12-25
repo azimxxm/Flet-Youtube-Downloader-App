@@ -2,19 +2,33 @@ import flet as ft
 import yt_dlp
 import os
 import subprocess
+import sys
 from pathlib import Path
 import threading
 import time
 from ui_components import ProgressControl
 
+def get_responsive_dimensions(page):
+    """Calculate responsive window dimensions based on screen size"""
+    try:
+        screen_width = 1440
+        screen_height = 900
+        window_width = max(700, min(950, int(screen_width * 0.65)))
+        window_height = max(750, min(1050, int(screen_height * 0.80)))
+        return window_width, window_height
+    except:
+        return 900, 900
 
 class InstagramDownloader:
     def __init__(self, page: ft.Page, on_back=None):
         self.page = page
         self.on_back = on_back
         self.page.title = "Instagram Downloader"
-        self.page.window_width = 800
-        self.page.window_height = 800
+
+        # Set responsive dimensions based on screen size
+        width, height = get_responsive_dimensions(page)
+        self.page.window_width = width
+        self.page.window_height = height
         self.page.theme_mode = ft.ThemeMode.DARK
         self.page.padding = 0
         self.page.bgcolor = "#1a1a1a"
@@ -57,10 +71,10 @@ class InstagramDownloader:
                 header_content,
                 alignment=ft.MainAxisAlignment.CENTER if not self.on_back else ft.MainAxisAlignment.START,
             ),
-            padding=ft.padding.only(top=20, bottom=15, left=20, right=20),
+            padding=ft.Padding.only(top=20, bottom=15, left=20, right=20),
             gradient=ft.LinearGradient(
-                begin=ft.alignment.top_center,
-                end=ft.alignment.bottom_center,
+                begin=ft.Alignment.TOP_CENTER,
+                end=ft.Alignment.BOTTOM_CENTER,
                 colors=["#2d2d2d", "#1a1a1a"],
             ),
         )
@@ -80,11 +94,12 @@ class InstagramDownloader:
             expand=True
         )
 
-        self.analyze_btn = ft.ElevatedButton(
-            text="Analyze",
-            icon=ft.Icons.SEARCH,
+        self.analyze_btn = ft.Button(
+            content=ft.Row([
+                ft.Icon(ft.Icons.SEARCH, color="white"),
+                ft.Text("Analyze", color="white"),
+            ], spacing=10),
             style=ft.ButtonStyle(
-                color="white",
                 bgcolor={"": "#E4405F", "hovered": "#C13584"},
                 shape=ft.RoundedRectangleBorder(radius=10),
             ),
@@ -130,11 +145,12 @@ class InstagramDownloader:
             visible=False
         )
 
-        self.download_btn = ft.ElevatedButton(
-            text="Download",
-            icon=ft.Icons.DOWNLOAD,
+        self.download_btn = ft.Button(
+            content=ft.Row([
+                ft.Icon(ft.Icons.DOWNLOAD, color="white"),
+                ft.Text("Download", color="white"),
+            ], spacing=10),
             style=ft.ButtonStyle(
-                color="white",
                 bgcolor={"": ft.Colors.GREEN_ACCENT, "hovered": ft.Colors.GREEN_700},
                 shape=ft.RoundedRectangleBorder(radius=10),
             ),
@@ -227,6 +243,7 @@ class InstagramDownloader:
                     )
                 ],
                 spacing=0,
+                scroll=ft.ScrollMode.AUTO,
                 expand=True,
             )
         )

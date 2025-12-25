@@ -2,18 +2,33 @@ import flet as ft
 import yt_dlp
 import os
 import subprocess
+import sys
 from pathlib import Path
 import threading
 import time
 from ui_components import ProgressControl
+
+def get_responsive_dimensions(page):
+    """Calculate responsive window dimensions based on screen size"""
+    try:
+        screen_width = 1440
+        screen_height = 900
+        window_width = max(750, min(1000, int(screen_width * 0.68)))
+        window_height = max(800, min(1100, int(screen_height * 0.85)))
+        return window_width, window_height
+    except:
+        return 950, 950
 
 class YouTubeDownloaderAdvanced:
     def __init__(self, page: ft.Page, on_back=None):
         self.page = page
         self.on_back = on_back
         self.page.title = "YouTube Downloader"
-        self.page.window_width = 800
-        self.page.window_height = 800
+
+        # Set responsive dimensions based on screen size
+        width, height = get_responsive_dimensions(page)
+        self.page.window_width = width
+        self.page.window_height = height
         self.page.theme_mode = ft.ThemeMode.DARK
         self.page.padding = 0
         self.page.bgcolor = "#1a1a1a"
@@ -54,10 +69,10 @@ class YouTubeDownloaderAdvanced:
                 header_content,
                 alignment=ft.MainAxisAlignment.CENTER if not self.on_back else ft.MainAxisAlignment.START,
             ),
-            padding=ft.padding.only(top=40, bottom=20, left=20),
+            padding=ft.Padding.only(top=40, bottom=20, left=20),
             gradient=ft.LinearGradient(
-                begin=ft.alignment.top_center,
-                end=ft.alignment.bottom_center,
+                begin=ft.Alignment.TOP_CENTER,
+                end=ft.Alignment.BOTTOM_CENTER,
                 colors=["#2d2d2d", "#1a1a1a"],
             ),
         )
@@ -76,11 +91,12 @@ class YouTubeDownloaderAdvanced:
             prefix_icon=ft.Icons.LINK,
         )
 
-        self.fetch_btn = ft.ElevatedButton(
-            text="Analyze Video",
-            icon=ft.Icons.SEARCH,
+        self.fetch_btn = ft.Button(
+            content=ft.Row([
+                ft.Icon(ft.Icons.SEARCH, color="white"),
+                ft.Text("Analyze Video", color="white"),
+            ], spacing=10),
             style=ft.ButtonStyle(
-                color="white",
                 bgcolor={"": ft.Colors.RED_ACCENT, "hovered": ft.Colors.RED_700},
                 shape=ft.RoundedRectangleBorder(radius=10),
                 padding=20,
@@ -116,7 +132,7 @@ class YouTubeDownloaderAdvanced:
             padding=20,
             bgcolor="#252525",
             border_radius=15,
-            border=ft.border.all(1, "#333333"),
+            border=ft.Border.all(1, "#333333"),
             animate_opacity=300,
             content=ft.Column([
                 ft.Text("Video Details", size=16, weight=ft.FontWeight.BOLD, color="#aaaaaa"),
@@ -175,13 +191,14 @@ class YouTubeDownloaderAdvanced:
                 
                 ft.Container(height=20),
                 
-                ft.ElevatedButton(
+                ft.Button(
                     ref=self.bind_ref("download_btn"),
-                    text="Download Now",
-                    icon=ft.Icons.DOWNLOAD,
+                    content=ft.Row([
+                        ft.Icon(ft.Icons.DOWNLOAD, color="white"),
+                        ft.Text("Download Now", color="white"),
+                    ], spacing=10),
                     width=600, # Full width
                     style=ft.ButtonStyle(
-                        color="white",
                         bgcolor={"": ft.Colors.GREEN_600, "hovered": ft.Colors.GREEN_700},
                         shape=ft.RoundedRectangleBorder(radius=10),
                         padding=20,
@@ -241,7 +258,7 @@ class YouTubeDownloaderAdvanced:
             bgcolor="#252525",
             padding=10,
             border_radius=10,
-            border=ft.border.all(1, "#333333")
+            border=ft.Border.all(1, "#333333")
         )
 
     def on_folder_selected(self, e: ft.FilePickerResultEvent):
@@ -562,4 +579,4 @@ def main(page: ft.Page):
     YouTubeDownloaderAdvanced(page)
 
 if __name__ == "__main__":
-    ft.app(target=main)
+    ft.run(main)

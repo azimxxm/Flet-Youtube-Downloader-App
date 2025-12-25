@@ -5,6 +5,7 @@ import os
 import platform
 import threading
 import time
+from pathlib import Path
 import youtube_downloader_mvp
 import youtube_downloader_advanced
 import youtube_playlist_downloader
@@ -20,12 +21,47 @@ common_paths = [
 ]
 os.environ["PATH"] += os.pathsep + os.pathsep.join(common_paths)
 
+# Setup complete flag file
+SETUP_COMPLETE_FLAG = Path.home() / ".youtube_downloader_setup_complete"
+
+def get_responsive_dimensions(page):
+    """Calculate responsive window dimensions based on screen size"""
+    try:
+        import subprocess
+
+        # Get screen resolution (macOS)
+        if sys.platform == "darwin":
+            result = subprocess.run(
+                ["system_profiler", "SPDisplaysDataType"],
+                capture_output=True,
+                text=True,
+                timeout=2
+            )
+            # For a simpler approach on macOS, we can use a default calculation
+            screen_width = 1440  # Common macOS screen width
+            screen_height = 900  # Common macOS screen height
+        else:
+            screen_width = 1920
+            screen_height = 1080
+
+        # Calculate responsive dimensions (use 70% of screen with min/max constraints)
+        window_width = max(600, min(900, int(screen_width * 0.65)))
+        window_height = max(700, min(1000, int(screen_height * 0.75)))
+
+        return window_width, window_height
+    except:
+        # Fallback to default sizes
+        return 800, 800
+
 class SetupWindow:
     def __init__(self, page: ft.Page):
         self.page = page
         self.page.title = "YouTube Downloader - Setup"
-        self.page.window_width = 700
-        self.page.window_height = 600
+
+        # Set responsive dimensions based on screen size
+        width, height = get_responsive_dimensions(page)
+        self.page.window_width = width
+        self.page.window_height = height
         self.page.theme_mode = ft.ThemeMode.DARK
         self.page.bgcolor = "#1a1a1a"
         self.page.padding = 0
@@ -102,29 +138,31 @@ class SetupWindow:
 
         self.status_text = ft.Text("", size=14, color="#aaaaaa", text_align=ft.TextAlign.CENTER)
 
-        self.install_btn = ft.ElevatedButton(
-            text="Install Dependencies",
-            icon=ft.Icons.DOWNLOAD,
+        self.install_btn = ft.Button(
+            content=ft.Row([
+                ft.Icon(ft.Icons.DOWNLOAD, color="white"),
+                ft.Text("Install Dependencies", color="white"),
+            ], spacing=10),
             on_click=self.install_dependencies,
             width=250,
             visible=False,
             disabled=True,
             style=ft.ButtonStyle(
-                color="white",
                 bgcolor={"": ft.Colors.BLUE_600, "hovered": ft.Colors.BLUE_700},
                 shape=ft.RoundedRectangleBorder(radius=10),
                 padding=20,
             ),
         )
 
-        self.get_started_btn = ft.ElevatedButton(
-            text="Get Started",
-            icon=ft.Icons.ARROW_FORWARD,
+        self.get_started_btn = ft.Button(
+            content=ft.Row([
+                ft.Icon(ft.Icons.ARROW_FORWARD, color="white"),
+                ft.Text("Get Started", color="white"),
+            ], spacing=10),
             on_click=self.start_app,
             width=250,
             visible=False,
             style=ft.ButtonStyle(
-                color="white",
                 bgcolor={"": ft.Colors.GREEN_600, "hovered": ft.Colors.GREEN_700},
                 shape=ft.RoundedRectangleBorder(radius=10),
                 padding=20,
@@ -132,34 +170,39 @@ class SetupWindow:
         )
 
         self.page.add(
-            ft.Container(
-                content=ft.Column(
-                    [
-                        ft.Container(
-                            content=ft.Column([
-                                ft.Icon(ft.Icons.SETTINGS_SUGGEST, size=50, color=ft.Colors.BLUE_ACCENT),
-                                ft.Text("System Check", size=28, weight=ft.FontWeight.BOLD, color="white"),
-                                ft.Text("Verifying environment requirements...", size=14, color="#888888"),
-                            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                            padding=ft.padding.only(bottom=20),
+            ft.Column(
+                [
+                    ft.Container(
+                        content=ft.Column(
+                            [
+                                ft.Container(
+                                    content=ft.Column([
+                                        ft.Icon(ft.Icons.SETTINGS_SUGGEST, size=50, color=ft.Colors.BLUE_ACCENT),
+                                        ft.Text("System Check", size=28, weight=ft.FontWeight.BOLD, color="white"),
+                                        ft.Text("Verifying environment requirements...", size=14, color="#888888"),
+                                    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                                    padding=ft.Padding.only(bottom=20),
+                                ),
+                                check_list,
+                                ft.Container(height=20),
+                                self.status_text,
+                                ft.Container(height=10),
+                                ft.Row(
+                                    [self.install_btn, self.get_started_btn],
+                                    alignment=ft.MainAxisAlignment.CENTER,
+                                ),
+                            ],
+                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                         ),
-                        check_list,
-                        ft.Container(height=20),
-                        self.status_text,
-                        ft.Container(height=10),
-                        ft.Row(
-                            [self.install_btn, self.get_started_btn],
-                            alignment=ft.MainAxisAlignment.CENTER,
+                        padding=40,
+                        gradient=ft.LinearGradient(
+                            begin=ft.Alignment.TOP_CENTER,
+                            end=ft.Alignment.BOTTOM_CENTER,
+                            colors=["#2d2d2d", "#1a1a1a"],
                         ),
-                    ],
-                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                ),
-                padding=40,
-                gradient=ft.LinearGradient(
-                    begin=ft.alignment.top_center,
-                    end=ft.alignment.bottom_center,
-                    colors=["#2d2d2d", "#1a1a1a"],
-                ),
+                    )
+                ],
+                scroll=ft.ScrollMode.AUTO,
                 expand=True,
             )
         )
@@ -250,6 +293,8 @@ class SetupWindow:
                 self.status_text.color = ft.Colors.GREEN_ACCENT
                 self.get_started_btn.visible = True
                 self.setup_complete = True
+                # Mark setup as complete
+                SETUP_COMPLETE_FLAG.touch()
             else:
                 self.status_text.value = "⚠️ Missing components detected"
                 self.status_text.color = ft.Colors.ORANGE_ACCENT
@@ -336,7 +381,7 @@ class SetupWindow:
                     time.sleep(2)
 
             # Check if everything is OK now
-            all_ok = all(info['status'] == 'success' for key, info in self.checks.values() if key != 'ffmpeg')
+            all_ok = all(info['status'] == 'success' for key, info in self.checks.items() if key != 'ffmpeg')
 
             if all_ok:
                 self.status_text.value = "✅ Installation complete!"
@@ -344,6 +389,8 @@ class SetupWindow:
                 self.get_started_btn.visible = True
                 self.install_btn.visible = False
                 self.setup_complete = True
+                # Mark setup as complete
+                SETUP_COMPLETE_FLAG.touch()
             else:
                 self.status_text.value = "❌ Failed to install some components"
                 self.status_text.color = ft.Colors.RED_ACCENT
@@ -362,8 +409,11 @@ class SetupWindow:
         """Show the mode selection menu"""
         self.page.clean()
         self.page.title = "Media Downloader - Select Platform"
-        self.page.window_width = 900
-        self.page.window_height = 650
+
+        # Set responsive dimensions based on screen size
+        width, height = get_responsive_dimensions(self.page)
+        self.page.window_width = width
+        self.page.window_height = height
 
         def go_back(_e=None):
             self.show_menu()
@@ -399,7 +449,7 @@ class SetupWindow:
                 padding=20,
                 bgcolor="#252525",
                 border_radius=15,
-                border=ft.border.all(1, "#333333"),
+                border=ft.Border.all(1, "#333333"),
                 on_click=on_click,
                 ink=True,
                 width=220,
@@ -408,72 +458,84 @@ class SetupWindow:
             )
 
         self.page.add(
-            ft.Container(
-                content=ft.Column(
-                    [
-                        ft.Text("Welcome to Media Downloader", size=32, weight=ft.FontWeight.BOLD, color="white"),
-                        ft.Text("Choose platform and download mode", size=16, color="#888888"),
-                        ft.Container(height=20),
-                        # Instagram Card (Featured)
-                        ft.Row(
+            ft.Column(
+                [
+                    ft.Container(
+                        content=ft.Column(
                             [
-                                create_option_card(
-                                    "Instagram",
-                                    "Download posts, reels & stories.",
-                                    ft.Icons.CAMERA_ALT_ROUNDED,
-                                    start_instagram,
-                                    "#E4405F"
+                                ft.Text("Welcome to Media Downloader", size=32, weight=ft.FontWeight.BOLD, color="white"),
+                                ft.Text("Choose platform and download mode", size=16, color="#888888"),
+                                ft.Container(height=20),
+                                # Instagram Card (Featured)
+                                ft.Row(
+                                    [
+                                        create_option_card(
+                                            "Instagram",
+                                            "Download posts, reels & stories.",
+                                            ft.Icons.CAMERA_ALT_ROUNDED,
+                                            start_instagram,
+                                            "#E4405F"
+                                        ),
+                                    ],
+                                    alignment=ft.MainAxisAlignment.CENTER,
+                                ),
+                                ft.Container(height=10),
+                                ft.Text("YouTube Modes", size=20, weight=ft.FontWeight.BOLD, color="white"),
+                                ft.Container(height=10),
+                                ft.Row(
+                                    [
+                                        create_option_card(
+                                            "Simple",
+                                            "Quick & easy download. Best for single videos.",
+                                            ft.Icons.BOLT,
+                                            start_mvp,
+                                            ft.Colors.YELLOW_ACCENT
+                                        ),
+                                        create_option_card(
+                                            "Advanced",
+                                            "Choose quality, format & subtitles.",
+                                            ft.Icons.TUNE,
+                                            start_advanced,
+                                            ft.Colors.RED_ACCENT
+                                        ),
+                                        create_option_card(
+                                            "Playlist",
+                                            "Download entire playlists at once.",
+                                            ft.Icons.PLAYLIST_PLAY,
+                                            start_playlist,
+                                            ft.Colors.BLUE_ACCENT
+                                        ),
+                                    ],
+                                    alignment=ft.MainAxisAlignment.CENTER,
+                                    spacing=20,
                                 ),
                             ],
-                            alignment=ft.MainAxisAlignment.CENTER,
+                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                         ),
-                        ft.Container(height=10),
-                        ft.Text("YouTube Modes", size=20, weight=ft.FontWeight.BOLD, color="white"),
-                        ft.Container(height=10),
-                        ft.Row(
-                            [
-                                create_option_card(
-                                    "Simple",
-                                    "Quick & easy download. Best for single videos.",
-                                    ft.Icons.BOLT,
-                                    start_mvp,
-                                    ft.Colors.YELLOW_ACCENT
-                                ),
-                                create_option_card(
-                                    "Advanced",
-                                    "Choose quality, format & subtitles.",
-                                    ft.Icons.TUNE,
-                                    start_advanced,
-                                    ft.Colors.RED_ACCENT
-                                ),
-                                create_option_card(
-                                    "Playlist",
-                                    "Download entire playlists at once.",
-                                    ft.Icons.PLAYLIST_PLAY,
-                                    start_playlist,
-                                    ft.Colors.BLUE_ACCENT
-                                ),
-                            ],
-                            alignment=ft.MainAxisAlignment.CENTER,
-                            spacing=20,
+                        padding=40,
+                        gradient=ft.LinearGradient(
+                            begin=ft.Alignment.TOP_CENTER,
+                            end=ft.Alignment.BOTTOM_CENTER,
+                            colors=["#2d2d2d", "#1a1a1a"],
                         ),
-                    ],
-                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                ),
-                padding=40,
-                gradient=ft.LinearGradient(
-                    begin=ft.alignment.top_center,
-                    end=ft.alignment.bottom_center,
-                    colors=["#2d2d2d", "#1a1a1a"],
-                ),
+                    )
+                ],
+                scroll=ft.ScrollMode.AUTO,
                 expand=True,
             )
         )
 
 
 def main(page: ft.Page):
-    SetupWindow(page)
+    # Check if setup is already complete
+    if SETUP_COMPLETE_FLAG.exists():
+        # Skip setup and go directly to menu
+        setup = SetupWindow(page)
+        setup.show_menu()
+    else:
+        # Show setup window for first time
+        SetupWindow(page)
 
 
 if __name__ == "__main__":
-    ft.app(target=main)
+    ft.run(main)

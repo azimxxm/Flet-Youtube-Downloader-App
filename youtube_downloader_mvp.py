@@ -2,18 +2,37 @@ import flet as ft
 import yt_dlp
 import os
 import subprocess
+import sys
 from pathlib import Path
 import threading
 from ui_components import ProgressControl
 
+def get_responsive_dimensions(page):
+    """Calculate responsive window dimensions based on screen size"""
+    try:
+        # Default responsive calculation (use 65-70% of common screen width)
+        screen_width = 1440  # Common screen width
+        screen_height = 900  # Common screen height
+
+        # Calculate responsive dimensions
+        window_width = max(700, min(950, int(screen_width * 0.65)))
+        window_height = max(750, min(1050, int(screen_height * 0.80)))
+
+        return window_width, window_height
+    except:
+        # Fallback to default sizes
+        return 900, 900
 
 class YouTubeDownloaderMVP:
     def __init__(self, page: ft.Page, on_back=None):
         self.page = page
         self.on_back = on_back
         self.page.title = "YouTube Downloader - Simple"
-        self.page.window_width = 800
-        self.page.window_height = 700
+
+        # Set responsive dimensions based on screen size
+        width, height = get_responsive_dimensions(page)
+        self.page.window_width = width
+        self.page.window_height = height
         self.page.theme_mode = ft.ThemeMode.DARK
         self.page.bgcolor = "#1a1a1a"
         self.page.padding = 0
@@ -53,10 +72,10 @@ class YouTubeDownloaderMVP:
                 header_content,
                 alignment=ft.MainAxisAlignment.CENTER if not self.on_back else ft.MainAxisAlignment.START,
             ),
-            padding=ft.padding.only(top=40, bottom=20, left=20),
+            padding=ft.Padding.only(top=40, bottom=20, left=20),
             gradient=ft.LinearGradient(
-                begin=ft.alignment.top_center,
-                end=ft.alignment.bottom_center,
+                begin=ft.Alignment.TOP_CENTER,
+                end=ft.Alignment.BOTTOM_CENTER,
                 colors=["#2d2d2d", "#1a1a1a"],
             ),
         )
@@ -98,13 +117,14 @@ class YouTubeDownloaderMVP:
         # Progress Control
         self.progress_control = ProgressControl(width=500)
 
-        self.download_btn = ft.ElevatedButton(
-            text="Download Now",
-            icon=ft.Icons.DOWNLOAD,
+        self.download_btn = ft.Button(
+            content=ft.Row([
+                ft.Icon(ft.Icons.DOWNLOAD, color="black"),
+                ft.Text("Download Now", color="black"),
+            ], spacing=10),
             on_click=self.download_video,
             width=250,
             style=ft.ButtonStyle(
-                color="black",
                 bgcolor={"": ft.Colors.YELLOW_ACCENT, "hovered": ft.Colors.YELLOW_700},
                 shape=ft.RoundedRectangleBorder(radius=10),
                 padding=20,
@@ -146,7 +166,7 @@ class YouTubeDownloaderMVP:
             bgcolor="#252525",
             padding=10,
             border_radius=10,
-            border=ft.border.all(1, "#333333")
+            border=ft.Border.all(1, "#333333")
         )
 
     def on_folder_selected(self, e: ft.FilePickerResultEvent):
@@ -248,4 +268,4 @@ def main(page: ft.Page):
 
 
 if __name__ == "__main__":
-    ft.app(target=main)
+    ft.run(main)

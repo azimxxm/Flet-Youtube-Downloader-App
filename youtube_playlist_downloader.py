@@ -2,10 +2,22 @@ import flet as ft
 import yt_dlp
 import os
 import subprocess
+import sys
 from pathlib import Path
 import threading
 import concurrent.futures
 from threading import Lock
+
+def get_responsive_dimensions(page):
+    """Calculate responsive window dimensions based on screen size"""
+    try:
+        screen_width = 1440
+        screen_height = 900
+        window_width = max(750, min(1000, int(screen_width * 0.68)))
+        window_height = max(800, min(1100, int(screen_height * 0.85)))
+        return window_width, window_height
+    except:
+        return 950, 950
 
 class VideoItem:
     def __init__(self, title, url, duration, thumbnail):
@@ -24,8 +36,11 @@ class PlaylistDownloader:
         self.page = page
         self.on_back = on_back
         self.page.title = "YouTube Playlist Downloader"
-        self.page.window_width = 900
-        self.page.window_height = 800
+
+        # Set responsive dimensions based on screen size
+        width, height = get_responsive_dimensions(page)
+        self.page.window_width = width
+        self.page.window_height = height
         self.page.theme_mode = ft.ThemeMode.DARK
         self.page.bgcolor = "#1a1a1a"
         self.page.padding = 0
@@ -73,10 +88,10 @@ class PlaylistDownloader:
                 header_content,
                 alignment=ft.MainAxisAlignment.CENTER if not self.on_back else ft.MainAxisAlignment.START,
             ),
-            padding=ft.padding.only(top=40, bottom=20, left=20),
+            padding=ft.Padding.only(top=40, bottom=20, left=20),
             gradient=ft.LinearGradient(
-                begin=ft.alignment.top_center,
-                end=ft.alignment.bottom_center,
+                begin=ft.Alignment.TOP_CENTER,
+                end=ft.Alignment.BOTTOM_CENTER,
                 colors=["#2d2d2d", "#1a1a1a"],
             ),
         )
@@ -95,11 +110,12 @@ class PlaylistDownloader:
             prefix_icon=ft.Icons.LINK,
         )
 
-        self.fetch_btn = ft.ElevatedButton(
-            text="Load Playlist",
-            icon=ft.Icons.SEARCH,
+        self.fetch_btn = ft.Button(
+            content=ft.Row([
+                ft.Icon(ft.Icons.SEARCH, color="white"),
+                ft.Text("Load Playlist", color="white"),
+            ], spacing=10),
             style=ft.ButtonStyle(
-                color="white",
                 bgcolor={"": ft.Colors.BLUE_ACCENT, "hovered": ft.Colors.BLUE_700},
                 shape=ft.RoundedRectangleBorder(radius=10),
                 padding=20,
@@ -135,7 +151,7 @@ class PlaylistDownloader:
             height=400,
             bgcolor="#252525",
             border_radius=10,
-            border=ft.border.all(1, "#333333"),
+            border=ft.Border.all(1, "#333333"),
             padding=10,
         )
 
@@ -152,14 +168,15 @@ class PlaylistDownloader:
 
         self.status_text = ft.Text("", size=14, color="#aaaaaa")
 
-        self.download_btn = ft.ElevatedButton(
-            text="Start Download",
-            icon=ft.Icons.DOWNLOAD,
+        self.download_btn = ft.Button(
+            content=ft.Row([
+                ft.Icon(ft.Icons.DOWNLOAD, color="white"),
+                ft.Text("Start Download", color="white"),
+            ], spacing=10),
             on_click=self.download_selected,
             width=300,
             visible=False,
             style=ft.ButtonStyle(
-                color="white",
                 bgcolor={"": ft.Colors.GREEN_600, "hovered": ft.Colors.GREEN_700},
                 shape=ft.RoundedRectangleBorder(radius=10),
                 padding=20,
@@ -202,7 +219,7 @@ class PlaylistDownloader:
             bgcolor="#252525",
             padding=10,
             border_radius=10,
-            border=ft.border.all(1, "#333333")
+            border=ft.Border.all(1, "#333333")
         )
 
     def on_folder_selected(self, e: ft.FilePickerResultEvent):
@@ -405,4 +422,4 @@ def main(page: ft.Page):
     PlaylistDownloader(page)
 
 if __name__ == "__main__":
-    ft.app(target=main)
+    ft.run(main)
